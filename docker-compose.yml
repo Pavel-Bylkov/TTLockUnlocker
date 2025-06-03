@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   auto_unlocker:
     build:
@@ -9,7 +8,7 @@ services:
     env_file:
       - ./env/.env
     volumes:
-      - shared_data:/app/logs  # Логи
+      - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
     healthcheck:
       test: ["CMD", "python", "-c", "import requests"]
@@ -28,7 +27,7 @@ services:
     depends_on:
       - auto_unlocker
     volumes:
-      - shared_data:/app/logs  # Логи
+      - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
 
 volumes:
