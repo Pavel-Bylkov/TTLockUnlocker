@@ -6,8 +6,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY auto_unlocker.py ./
-COPY .env ./
-RUN chown appuser:appuser auto_unlocker.py .env || true
+RUN chown appuser:appuser auto_unlocker.py || true
 USER appuser
 
 # Healthcheck: скрипт должен быть живым процессом

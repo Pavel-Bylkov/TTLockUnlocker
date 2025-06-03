@@ -6,8 +6,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY telegram_bot.py ./
-COPY .env ./
-RUN mkdir -p logs && chown appuser:appuser telegram_bot.py .env logs
+RUN mkdir -p logs && chown appuser:appuser telegram_bot.py logs
 USER appuser
 
 CMD ["python", "telegram_bot.py"] 
