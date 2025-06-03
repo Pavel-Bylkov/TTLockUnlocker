@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1.4
+FROM python:3.10-slim
+
+RUN useradd -m appuser
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY telegram_bot.py ./
+COPY .env ./
+RUN mkdir -p logs && chown appuser:appuser telegram_bot.py .env logs
+USER appuser
+
+CMD ["python", "telegram_bot.py"] 

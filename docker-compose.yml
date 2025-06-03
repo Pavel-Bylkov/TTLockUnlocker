@@ -1,0 +1,35 @@
+version: '3.8'
+services:
+  auto_unlocker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auto_unlocker_1
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - shared_data:/app/logs
+      - shared_data:/app/.env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+
+  telegram_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.telegram_bot
+    container_name: telegram_bot_1
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - auto_unlocker
+    volumes:
+      - shared_data:/app/logs
+      - shared_data:/app/.env
+
+volumes:
+  shared_data: 
