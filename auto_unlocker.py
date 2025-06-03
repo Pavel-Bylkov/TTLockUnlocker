@@ -52,7 +52,8 @@ TZ = pytz.timezone('Asia/Novosibirsk')
 LOCK_ID = None
 
 # Настройка логирования с ротацией (14 дней)
-LOG_FILENAME = "auto_unlocker.log"
+LOG_FILENAME = "logs/auto_unlocker.log"
+os.makedirs("logs", exist_ok=True)
 logger = logging.getLogger("auto_unlocker")
 logger.setLevel(logging.INFO)
 handler = TimedRotatingFileHandler(LOG_FILENAME, when="midnight", backupCount=14, encoding="utf-8")
