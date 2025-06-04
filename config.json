@@ -1,0 +1,22 @@
+{
+  "timezone": "Asia/Novosibirsk",
+  "schedule_enabled": true,
+  "open_times": {
+    "monday": "09:00",
+    "tuesday": "09:00",
+    "wednesday": "09:00",
+    "thursday": "09:00",
+    "friday": "09:00",
+    "saturday": null,
+    "sunday": null
+  },
+  "breaks": {
+    "monday": ["13:00-14:00"],
+    "tuesday": [],
+    "wednesday": [],
+    "thursday": [],
+    "friday": [],
+    "saturday": [],
+    "sunday": []
+  }
+} 

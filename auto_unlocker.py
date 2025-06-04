@@ -17,6 +17,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from logging.handlers import TimedRotatingFileHandler
+import ttlock_api
 
 # Уровень отладки
 DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
@@ -61,6 +62,37 @@ formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
+
+def load_config():
+    """Загружает настройки из config.json. Если нет файла — возвращает дефолтные значения."""
+    default = {
+        "timezone": "Asia/Novosibirsk",
+        "schedule_enabled": True,
+        "open_times": {
+            "monday": "09:00",
+            "tuesday": "09:00",
+            "wednesday": "09:00",
+            "thursday": "09:00",
+            "friday": "09:00",
+            "saturday": None,
+            "sunday": None
+        },
+        "breaks": {
+            "monday": ["13:00-14:00"],
+            "tuesday": [],
+            "wednesday": [],
+            "thursday": [],
+            "friday": [],
+            "saturday": [],
+            "sunday": []
+        }
+    }
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
 
 def send_telegram_message(text):
     """
@@ -102,119 +134,6 @@ def debug_request(name, url, data, response):
         print(f"Тело ответа (не JSON): {response.text}")
 
 
-def get_token():
-    """
-    Получает access_token для TTLock Cloud API по логину/паролю владельца аккаунта.
-    :return: access_token или None
-    """
-    url = "https://euapi.ttlock.com/oauth2/token"
-    password_md5 = hashlib.md5(password.encode()).hexdigest()
-    data = {
-        "username": username,
-        "password": password_md5,
-        "clientId": client_id,
-        "clientSecret": client_secret
-    }
-    response = requests.post(url, data=data, verify=False)
-    if DEBUG:
-        debug_request("Получение токена", url, data, response)
-    response_data = response.json()
-    if response.status_code == 200 and "access_token" in response_data:
-        if DEBUG:
-            print("Токен получен успешно")
-        logger.info("Токен TTLock получен успешно")
-        return response_data["access_token"]
-    else:
-        msg = f"Ошибка получения токена: {response_data}"
-        print(msg)
-        logger.error(msg)
-        send_telegram_message(f"❗️ <b>Ошибка получения токена TTLock</b>\n{response_data}")
-        return None
-
-
-def list_locks(token):
-    """
-    Запрашивает список замков, доступных для данного access_token (только для владельца).
-    :param token: access_token
-    :return: список замков (list)
-    """
-    url = "https://euapi.ttlock.com/v3/lock/list"
-    data = {
-        "clientId": client_id,
-        "accessToken": token,
-        "pageNo": 1,
-        "pageSize": 20,
-        "date": int(time.time() * 1000)
-    }
-    try:
-        response = requests.post(url, data=data, verify=False)
-        if DEBUG:
-            debug_request("Список замков", url, data, response)
-        response_data = response.json()
-        return response_data.get("list", [])
-    except Exception as e:
-        msg = f"Ошибка получения списка замков: {str(e)}"
-        print(msg)
-        logger.error(msg)
-        send_telegram_message(f"❗️ <b>Ошибка получения списка замков</b>\n{str(e)}")
-        return []
-
-
-def unlock_lock(token, lock_id):
-    """
-    Пытается открыть замок с указанным lock_id через облако.
-    :param token: access_token
-    :param lock_id: идентификатор замка
-    :return: True/False
-    """
-    url = "https://euapi.ttlock.com/v3/lock/unlock"
-    data = {
-        "clientId": client_id,
-        "lockId": lock_id,
-        "accessToken": token,
-        "date": int(time.time() * 1000)
-    }
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.post(url, data=data, verify=False)
-            if DEBUG:
-                debug_request("Открытие замка", url, data, response)
-            response_data = response.json()
-            if "errcode" in response_data and response_data["errcode"] == 0:
-                msg = f"✅ Замок {lock_id} открыт успешно"
-                if DEBUG:
-                    print(msg)
-                logger.info(msg)
-                send_telegram_message(msg)
-                return True
-            elif "errcode" in response_data and response_data["errcode"] == -3037:
-                if attempt < MAX_RETRIES - 1:
-                    msg = f"Замок {lock_id} занят. Повтор через {RETRY_DELAY} сек... (Попытка {attempt + 1}/{MAX_RETRIES})"
-                    print(msg)
-                    logger.warning(msg)
-                    time.sleep(RETRY_DELAY)
-                    continue
-                else:
-                    msg = f"Замок {lock_id} занят. Достигнут лимит попыток. Попробуйте позже."
-                    print(msg)
-                    logger.error(msg)
-                    send_telegram_message(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-                    return False
-            else:
-                msg = f"Ошибка при открытии замка {lock_id}: {response_data.get('errmsg', 'Unknown error')} (Код: {response_data.get('errcode')})"
-                print(msg)
-                logger.error(msg)
-                send_telegram_message(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-                return False
-        except Exception as e:
-            msg = f"Ошибка при запросе открытия замка {lock_id}: {str(e)}"
-            print(msg)
-            logger.error(msg)
-            send_telegram_message(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-            return False
-    return False
-
-
 def resolve_lock_id(token):
     """
     Пытается получить lock_id из .env, либо из первого замка в списке.
@@ -227,7 +146,7 @@ def resolve_lock_id(token):
         logger.info(f"lock_id найден в .env: {lock_id_env}")
         send_telegram_message(f"ℹ️ lock_id найден в .env: <code>{lock_id_env}</code>")
         return lock_id_env
-    locks = list_locks(token)
+    locks = ttlock_api.list_locks(token)
     if not locks:
         msg = "Замки не найдены. Проверьте права доступа."
         print(msg)
@@ -253,7 +172,7 @@ def job():
     print(msg)
     logger.info(msg)
     send_telegram_message(f"🔔 <b>Запуск задачи открытия замка</b>\n{now_str}")
-    token = get_token()
+    token = ttlock_api.get_token(logger)
     if not token:
         msg = "Не удалось получить токен, задача пропущена."
         print(msg)
@@ -268,18 +187,24 @@ def job():
             logger.error(msg)
             send_telegram_message(f"❗️ <b>Ошибка: не удалось определить lock_id</b>")
             return
-    unlock_lock(token, LOCK_ID)
+    ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
 
 
 def main():
     """
     Точка входа: определяет lock_id, запускает планировщик.
     """
-    global LOCK_ID
+    global LOCK_ID, TZ
+    config = load_config()
+    TZ = pytz.timezone(config.get("timezone", "Asia/Novosibirsk"))
+    schedule_enabled = config.get("schedule_enabled", True)
+    open_times = config.get("open_times", {})
+    breaks = config.get("breaks", {})
+
     print("\n[INIT] Определение lock_id...")
     logger.info("[INIT] Определение lock_id...")
     send_telegram_message("🚀 <b>Сервис авто-открытия замка TTLock запущен</b>")
-    token = get_token()
+    token = ttlock_api.get_token(logger)
     if not token:
         msg = "Не удалось получить токен при инициализации. Скрипт завершён."
         print(msg)
@@ -296,10 +221,52 @@ def main():
     print(f"lock_id для работы: {LOCK_ID}")
     logger.info(f"lock_id для работы: {LOCK_ID}")
     send_telegram_message(f"ℹ️ lock_id для работы: <code>{LOCK_ID}</code>")
-    # Планируем задачу на 9:00 утра по Новосибирску каждый день
-    schedule.every().day.at("09:00").do(job)
-    print("Сервис авто-открытия замка запущен. Ожидание 9:00 по Новосибирску...")
-    logger.info("Сервис авто-открытия замка запущен. Ожидание 9:00 по Новосибирску...")
+
+    if not schedule_enabled:
+        print("[INFO] Автоматическое расписание отключено через config.json")
+        logger.info("Автоматическое расписание отключено через config.json")
+        send_telegram_message("ℹ️ Автоматическое расписание <b>отключено</b> через config.json")
+        while True:
+            time.sleep(60)
+
+    # Планируем задачи по дням недели
+    for day, open_time in open_times.items():
+        if open_time:
+            getattr(schedule.every(), day).at(open_time).do(job)
+            print(f"[SCHEDULE] {day}: открытие в {open_time}")
+            logger.info(f"[SCHEDULE] {day}: открытие в {open_time}")
+        # Перерывы (закрытие/открытие)
+        for interval in breaks.get(day, []):
+            try:
+                close_time, reopen_time = interval.split("-")
+                # Закрытие
+                def make_close(day=day):
+                    def _close():
+                        token = ttlock_api.get_token(logger)
+                        if token and LOCK_ID:
+                            send_telegram_message(f"🔒 <b>Перерыв: закрытие замка</b> ({day})")
+                            ttlock_api.lock_lock(token, LOCK_ID, logger, send_telegram_message)
+                    return _close
+                getattr(schedule.every(), day).at(close_time).do(make_close())
+                print(f"[SCHEDULE] {day}: закрытие в {close_time}")
+                logger.info(f"[SCHEDULE] {day}: закрытие в {close_time}")
+                # Открытие после перерыва
+                def make_reopen(day=day):
+                    def _open():
+                        token = ttlock_api.get_token(logger)
+                        if token and LOCK_ID:
+                            send_telegram_message(f"🔓 <b>Перерыв окончен: открытие замка</b> ({day})")
+                            ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
+                    return _open
+                getattr(schedule.every(), day).at(reopen_time).do(make_reopen())
+                print(f"[SCHEDULE] {day}: открытие после перерыва в {reopen_time}")
+                logger.info(f"[SCHEDULE] {day}: открытие после перерыва в {reopen_time}")
+            except Exception as e:
+                print(f"[ERROR] Ошибка разбора интервала перерыва {interval} для {day}: {e}")
+                logger.error(f"Ошибка разбора интервала перерыва {interval} для {day}: {e}")
+
+    print("Сервис авто-открытия замка запущен. Ожидание событий по расписанию...")
+    logger.info("Сервис авто-открытия замка запущен. Ожидание событий по расписанию...")
     while True:
         schedule.run_pending()
         time.sleep(30)

@@ -10,6 +10,7 @@ import hashlib
 import urllib3
 import os
 from dotenv import load_dotenv
+import ttlock_api
 
 # import schedule
 
@@ -200,10 +201,10 @@ def unlock_lock(token, lock_id):
 
 
 # Main execution
-token = get_token()
+token = ttlock_api.get_token()
 
 if token:
-    locks = list_locks(token)
+    locks = ttlock_api.list_locks(token)
     lock_list = locks.get("list", []) if locks else []
     if lock_list:
         first_lock = lock_list[0]
@@ -213,7 +214,7 @@ if token:
         # lock_lock(token, lock_id)
         # get_lock_status(token, lock_id)
         print("\nПробуем открыть замок...")
-        unlock_lock(token, lock_id)
+        ttlock_api.unlock_lock(token, lock_id)
         # get_lock_status(token, lock_id)
     else:
         print("Замки не найдены. Проверьте права доступа.")

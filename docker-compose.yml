@@ -10,6 +10,7 @@ services:
     volumes:
       - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
+      - ./config.json:/app/config.json  # настройки
     healthcheck:
       test: ["CMD", "python", "-c", "import requests"]
       interval: 1m
@@ -29,6 +30,7 @@ services:
     volumes:
       - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
+      - ./config.json:/app/config.json  # настройки
 
 volumes:
   shared_data: 
