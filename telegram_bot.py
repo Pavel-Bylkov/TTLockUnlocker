@@ -87,14 +87,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обрабатывает команду /start. Приветствие и краткая инструкция.
     """
+    logger.info(f"Получена команда /start от chat_id={update.effective_chat.id}")
     if DEBUG:
         print("[DEBUG] /start вызван")
-    await update.message.reply_text("Привет! Я бот для управления рассылкой уведомлений TTLock.\nКоманда /setchat — сменить получателя уведомлений.")
+    menu = (
+        "Привет! Я бот для управления замками TTLock.\n\n"
+        "<b>Доступные команды:</b>\n"
+        "/setchat — сменить получателя уведомлений\n"
+        "/status — статус расписания\n"
+        "/enable_schedule — включить расписание\n"
+        "/disable_schedule — выключить расписание\n"
+        "/settimezone — сменить часовой пояс\n"
+        "/settime — сменить время открытия\n"
+        "/setbreak — настроить перерывы\n"
+        "/open — открыть замок\n"
+        "/close — закрыть замок\n"
+    )
+    await update.message.reply_text(menu, parse_mode="HTML")
 
 async def setchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Запрашивает у пользователя кодовое слово для смены chat_id.
     """
+    logger.info(f"Получена команда /setchat от chat_id={update.effective_chat.id}")
     if DEBUG:
         print(f"[DEBUG] /setchat вызван от chat_id={update.message.chat_id}")
     await update.message.reply_text("Введите кодовое слово:")
@@ -186,6 +201,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получена команда /status от chat_id={update.effective_chat.id}")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -206,6 +222,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получена команда /enable_schedule от chat_id={update.effective_chat.id}")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -215,6 +232,7 @@ async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Расписание <b>включено</b>.", parse_mode="HTML")
 
 async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получена команда /disable_schedule от chat_id={update.effective_chat.id}")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -224,6 +242,7 @@ async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Расписание <b>отключено</b>.", parse_mode="HTML")
 
 async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получена команда /open от chat_id={update.effective_chat.id}")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -242,6 +261,7 @@ async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ошибка открытия замка: {resp.get('errmsg')} (код {resp.get('errcode')})", parse_mode="HTML")
 
 async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получена команда /close от chat_id={update.effective_chat.id}")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -499,8 +519,8 @@ def main():
     app.add_handler(CommandHandler('disable_schedule', disable_schedule))
     app.add_handler(CommandHandler('open', open_lock))
     app.add_handler(CommandHandler('close', close_lock))
+    logger.info("Telegram-бот успешно запущен и готов к работе.")
     app.run_polling()
-    logger.info("Бот успешно запущен!")
 
 if __name__ == '__main__':
     main() 
