@@ -15,6 +15,8 @@ import requests
 import time
 import pytz
 import ttlock_api
+from logging.handlers import TimedRotatingFileHandler
+import sys
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -24,11 +26,16 @@ DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
 
 # Настройка логирования
 os.makedirs('logs', exist_ok=True)
-logging.basicConfig(
-    filename='logs/telegram_bot.log',
-    format='%(asctime)s %(levelname)s: %(message)s',
-    level=logging.INFO
-)
+logger = logging.getLogger("telegram_bot")
+logger.setLevel(logging.INFO)
+handler = TimedRotatingFileHandler('logs/telegram_bot.log', when="midnight", backupCount=14, encoding="utf-8")
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+# Дублируем логи в stdout для Docker
+console = logging.StreamHandler(sys.stdout)
+console.setFormatter(formatter)
+logger.addHandler(console)
 
 CODEWORD = os.getenv('TELEGRAM_CODEWORD', 'secretword')
 # Определяем путь к .env: сначала из ENV_PATH, иначе ./env
@@ -230,9 +237,9 @@ async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     resp = ttlock_api.unlock_lock(token, lock_id, logger)
     if resp.get("errcode") == 0:
-        await update.message.reply_text("Замок <b>открыт</b>!", parse_mode="HTML")
+        await update.message.reply_text(f"Замок <b>открыт</b>! (попытка {resp.get('attempt')})", parse_mode="HTML")
     else:
-        await update.message.reply_text(f"Ошибка открытия замка: {resp}")
+        await update.message.reply_text(f"Ошибка открытия замка: {resp.get('errmsg')} (код {resp.get('errcode')})", parse_mode="HTML")
 
 async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
@@ -248,9 +255,9 @@ async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     resp = ttlock_api.lock_lock(token, lock_id, logger)
     if resp.get("errcode") == 0:
-        await update.message.reply_text("Замок <b>закрыт</b>!", parse_mode="HTML")
+        await update.message.reply_text(f"Замок <b>закрыт</b>! (попытка {resp.get('attempt')})", parse_mode="HTML")
     else:
-        await update.message.reply_text(f"Ошибка закрытия замка: {resp}")
+        await update.message.reply_text(f"Ошибка закрытия замка: {resp.get('errmsg')} (код {resp.get('errcode')})", parse_mode="HTML")
 
 async def settimezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):

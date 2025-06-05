@@ -5,16 +5,16 @@
     "monday": "09:01",
     "tuesday": "09:01",
     "wednesday": "09:01",
-    "thursday": "09:01",
+    "thursday": "22:38",
     "friday": "09:01",
     "saturday": "09:01",
     "sunday": "09:01"
   },
   "breaks": {
-    "monday": [],
+    "monday": ["22:40-22:45"],
     "tuesday": [],
     "wednesday": [],
-    "thursday": ["09:05-09:10"],
+    "thursday": ["22:40-22:45"],
     "friday": [],
     "saturday": [],
     "sunday": []

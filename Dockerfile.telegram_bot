@@ -9,4 +9,6 @@ COPY telegram_bot.py ./
 RUN mkdir -p /app/logs && chown appuser:appuser /app/logs && chown appuser:appuser telegram_bot.py || true
 USER appuser
 
+HEALTHCHECK --interval=1m --timeout=10s CMD pgrep -f telegram_bot.py || exit 1
+
 CMD ["python", "telegram_bot.py"] 

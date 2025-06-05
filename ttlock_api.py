@@ -44,7 +44,7 @@ def unlock_lock(token, lock_id, logger=None, send_telegram=None):
     :param lock_id: Идентификатор замка, который нужно открыть.
     :param logger: Логгер для записи информации (опционально).
     :param send_telegram: Функция для отправки сообщений в Telegram (опционально).
-    :return: Результат операции (успех или ошибка).
+    :return: dict с результатом операции (errcode, errmsg, success, attempt).
     """
     url = "https://euapi.ttlock.com/v3/lock/unlock"
     data = {
@@ -78,7 +78,7 @@ def unlock_lock(token, lock_id, logger=None, send_telegram=None):
                     print(msg)
                 if send_telegram:
                     send_telegram(msg)
-                return True
+                return {"errcode": 0, "errmsg": "OK", "success": True, "attempt": attempt+1}
             else:
                 msg = f"Ошибка при открытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Unknown error')} (Код: {response_data.get('errcode')})"
                 if logger:
@@ -95,7 +95,7 @@ def unlock_lock(token, lock_id, logger=None, send_telegram=None):
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-    return False
+    return {"errcode": -1, "errmsg": "Не удалось открыть замок после 3 попыток", "success": False, "attempt": 3}
 
 
 def lock_lock(token, lock_id, logger=None, send_telegram=None):
@@ -106,7 +106,7 @@ def lock_lock(token, lock_id, logger=None, send_telegram=None):
     :param lock_id: Идентификатор замка, который нужно закрыть.
     :param logger: Логгер для записи информации (опционально).
     :param send_telegram: Функция для отправки сообщений в Telegram (опционально).
-    :return: Результат операции (успех или ошибка).
+    :return: dict с результатом операции (errcode, errmsg, success, attempt).
     """
     url = "https://euapi.ttlock.com/v3/lock/lock"
     data = {
@@ -140,7 +140,7 @@ def lock_lock(token, lock_id, logger=None, send_telegram=None):
                     print(msg)
                 if send_telegram:
                     send_telegram(msg)
-                return True
+                return {"errcode": 0, "errmsg": "OK", "success": True, "attempt": attempt+1}
             else:
                 msg = f"Ошибка при закрытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Unknown error')} (Код: {response_data.get('errcode')})"
                 if logger:
@@ -157,7 +157,7 @@ def lock_lock(token, lock_id, logger=None, send_telegram=None):
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
-    return False
+    return {"errcode": -1, "errmsg": "Не удалось закрыть замок после 3 попыток", "success": False, "attempt": 3}
 
 
 def list_locks(token, logger=None):
