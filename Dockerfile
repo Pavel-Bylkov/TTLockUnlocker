@@ -6,6 +6,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY auto_unlocker.py ./
+COPY ttlock_api.py ./
 RUN mkdir -p /app/logs && chown appuser:appuser /app/logs && chown appuser:appuser auto_unlocker.py || true
 USER appuser
 
