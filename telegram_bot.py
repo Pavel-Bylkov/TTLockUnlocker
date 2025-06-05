@@ -19,7 +19,7 @@ from logging.handlers import TimedRotatingFileHandler
 import sys
 
 # Загрузка переменных окружения
-load_dotenv()
+load_dotenv('/app/.env')
 
 # Уровень отладки
 DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
