@@ -500,6 +500,7 @@ def main():
     app.add_handler(CommandHandler('open', open_lock))
     app.add_handler(CommandHandler('close', close_lock))
     app.run_polling()
+    logger.info("Бот успешно запущен!")
 
 if __name__ == '__main__':
     main() 
