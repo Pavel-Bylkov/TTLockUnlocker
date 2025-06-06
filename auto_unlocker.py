@@ -12,7 +12,6 @@ import hashlib
 import urllib3
 import schedule
 from datetime import datetime
-import pytz
 import os
 from dotenv import load_dotenv
 import logging
@@ -39,6 +38,19 @@ lock_id_env = os.getenv("TTLOCK_LOCK_ID")
 telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
+REQUIRED_ENV_VARS = [
+    'TTLOCK_CLIENT_ID',
+    'TTLOCK_CLIENT_SECRET',
+    'TTLOCK_USERNAME',
+    'TTLOCK_PASSWORD',
+    'TELEGRAM_BOT_TOKEN',
+    'TELEGRAM_CHAT_ID',
+]
+missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+if missing_vars:
+    print(f"[ERROR] Не заданы обязательные переменные окружения: {', '.join(missing_vars)}. Проверьте .env файл!")
+    exit(1)
+
 if not all([client_id, client_secret, username, password]):
     raise RuntimeError("Не заданы все переменные окружения TTLOCK_CLIENT_ID, TTLOCK_CLIENT_SECRET, TTLOCK_USERNAME, TTLOCK_PASSWORD. Проверьте .env файл!")
 
@@ -46,23 +58,20 @@ if not all([client_id, client_secret, username, password]):
 MAX_RETRIES = 3
 RETRY_DELAY = 2
 
-# Часовой пояс Новосибирска
-TZ = pytz.timezone('Asia/Novosibirsk')
-
 # Глобальная переменная для lock_id, если он найден при старте
 LOCK_ID = None
 
-# Настройка логирования с ротацией (14 дней)
+CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
+
 LOG_FILENAME = "logs/auto_unlocker.log"
 os.makedirs("logs", exist_ok=True)
 logger = logging.getLogger("auto_unlocker")
 logger.setLevel(logging.INFO)
 handler = TimedRotatingFileHandler(LOG_FILENAME, when="midnight", backupCount=14, encoding="utf-8")
-formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+formatter = ttlock_api.TZFormatter('%(asctime)s %(levelname)s: %(message)s', '%Y-%m-%d %H:%M:%S')
 handler.setFormatter(formatter)
+logger.handlers.clear()
 logger.addHandler(handler)
-
-CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
 def load_config():
     """Загружает настройки из config.json. Если нет файла — возвращает дефолтные значения."""
@@ -167,7 +176,8 @@ def job():
     Основная задача: открыть замок в 9:00 по Новосибирску.
     """
     global LOCK_ID
-    now_str = datetime.now(TZ).strftime('%Y-%m-%d %H:%M:%S')
+    now = ttlock_api.get_now()
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     msg = f"\n[{now_str}] Запуск задачи открытия замка..."
     print(msg)
     logger.info(msg)
@@ -194,9 +204,9 @@ def main():
     """
     Точка входа: определяет lock_id, запускает планировщик.
     """
-    global LOCK_ID, TZ
+    global LOCK_ID
     config = load_config()
-    TZ = pytz.timezone(config.get("timezone", "Asia/Novosibirsk"))
+    tz = config.get("timezone", "Asia/Novosibirsk")
     schedule_enabled = config.get("schedule_enabled", True)
     open_times = config.get("open_times", {})
     breaks = config.get("breaks", {})

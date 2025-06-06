@@ -13,10 +13,13 @@ from dotenv import load_dotenv
 import json
 import requests
 import time
-import pytz
 import ttlock_api
 from logging.handlers import TimedRotatingFileHandler
 import sys
+from datetime import datetime
+import pytz
+import traceback
+from telegram_utils import send_telegram_message, is_authorized, log_exception
 
 # Загрузка переменных окружения
 load_dotenv('/app/.env')
@@ -28,9 +31,12 @@ DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
 os.makedirs('logs', exist_ok=True)
 logger = logging.getLogger("telegram_bot")
 logger.setLevel(logging.INFO)
+
+
 handler = TimedRotatingFileHandler('logs/telegram_bot.log', when="midnight", backupCount=14, encoding="utf-8")
-formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+formatter = ttlock_api.TZFormatter('%(asctime)s %(levelname)s: %(message)s', '%Y-%m-%d %H:%M:%S')
 handler.setFormatter(formatter)
+logger.handlers.clear()
 logger.addHandler(handler)
 # Дублируем логи в stdout для Docker
 console = logging.StreamHandler(sys.stdout)
@@ -66,6 +72,19 @@ DAY_MAP_INV = dict(zip(DAYS, DAYS_RU))
 
 SETBREAK_DAY, SETBREAK_ACTION, SETBREAK_ADD, SETBREAK_DEL = range(30, 34)
 
+REQUIRED_ENV_VARS = [
+    'TELEGRAM_BOT_TOKEN',
+    'AUTO_UNLOCKER_CONTAINER',
+    'TTLOCK_CLIENT_ID',
+    'TTLOCK_CLIENT_SECRET',
+    'TTLOCK_USERNAME',
+    'TTLOCK_PASSWORD',
+]
+missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+if missing_vars:
+    print(f"[ERROR] Не заданы обязательные переменные окружения: {', '.join(missing_vars)}. Проверьте .env файл!")
+    exit(1)
+
 def load_config():
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -79,6 +98,20 @@ def save_config(cfg):
 
 # Проверка авторизации (только для chat_id из .env)
 AUTHORIZED_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+
+def send_telegram_message(token, chat_id, text):
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    try:
+        resp = requests.post(url, data=payload, timeout=10)
+        if resp.status_code != 200:
+            logger.warning(f"Ошибка отправки Telegram: {resp.text}")
+    except Exception as e:
+        logger.warning(f"Ошибка отправки Telegram: {str(e)}\n{traceback.format_exc()}")
 
 def is_authorized(update):
     return str(update.effective_chat.id) == str(AUTHORIZED_CHAT_ID)
@@ -175,30 +208,24 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Ошибка записи .env: {e}")
             return ConversationHandler.END
         # Пробуем перезапустить контейнер, если он есть
-        try:
-            if DEBUG:
-                print(f"[DEBUG] Пробую получить контейнер {AUTO_UNLOCKER_CONTAINER}")
-            client = docker.from_env()
-            container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
-            container.restart()
-            await update.message.reply_text("Получатель уведомлений изменён, скрипт перезапущен.")
-            if DEBUG:
-                print(f"[DEBUG] Контейнер {AUTO_UNLOCKER_CONTAINER} перезапущен")
-            logging.info(f"Контейнер {AUTO_UNLOCKER_CONTAINER} перезапущен.")
-        except docker.errors.NotFound:
-            await update.message.reply_text("Chat ID сохранён в .env. Контейнер auto_unlocker не найден. Перезапустите его вручную, чтобы изменения вступили в силу.")
-            if DEBUG:
-                print(f"[DEBUG] Контейнер {AUTO_UNLOCKER_CONTAINER} не найден. Только обновлён .env.")
-            logging.warning(f"Контейнер {AUTO_UNLOCKER_CONTAINER} не найден. Только обновлён .env.")
-        except Exception as e:
-            await update.message.reply_text(f"Chat ID сохранён в .env, но ошибка при попытке перезапуска контейнера: {str(e)}")
-            print(f"[ERROR] Ошибка перезапуска контейнера: {e}")
-            logging.error(f"Ошибка перезапуска контейнера: {str(e)}")
+        await restart_auto_unlocker_and_notify(update, logger, "Получатель уведомлений изменён, скрипт перезапущен.", "Ошибка перезапуска контейнера")
     else:
         if DEBUG:
             print("[DEBUG] Операция отменена пользователем")
         await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
+
+async def restart_auto_unlocker_and_notify(update, logger, message_success, message_error):
+    try:
+        client = docker.from_env()
+        container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
+        container.restart()
+        await update.message.reply_text(message_success, parse_mode="HTML")
+        logger.info("auto_unlocker контейнер перезапущен после изменения конфигурации.")
+    except Exception as e:
+        await update.message.reply_text(f"{message_error}: {e}", parse_mode="HTML")
+        logger.error(f"Ошибка перезапуска auto_unlocker: {e}")
+        log_exception(logger)
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /status от chat_id={update.effective_chat.id}")
@@ -210,15 +237,35 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     enabled = cfg.get("schedule_enabled", True)
     open_times = cfg.get("open_times", {})
     breaks = cfg.get("breaks", {})
+    # Проверка статуса auto_unlocker
+    try:
+        client = docker.from_env()
+        container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
+        status_str = f"<b>auto_unlocker:</b> <code>{container.status}</code>"
+    except Exception as e:
+        status_str = f"<b>auto_unlocker:</b> <code>не найден</code>"
+    # Последние логи auto_unlocker
+    log_path = "logs/auto_unlocker.log"
+    try:
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()[-10:]
+            logs = "\n".join([line.strip() for line in lines])
+        else:
+            logs = "Лог-файл не найден."
+    except Exception as e:
+        logs = f"Ошибка чтения логов: {e}"
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
+    msg += status_str + "\n"
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
         msg += f"{day.title()}: {t or '-'}\n"
     msg += "<b>Перерывы:</b>\n"
     for day, br in breaks.items():
         msg += f"{day.title()}: {', '.join(br) if br else '-'}\n"
+    msg += "\n<b>Последние логи auto_unlocker:</b>\n<code>" + logs + "</code>"
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -229,7 +276,8 @@ async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg = load_config()
     cfg["schedule_enabled"] = True
     save_config(cfg)
-    await update.message.reply_text("Расписание <b>включено</b>.", parse_mode="HTML")
+    # Перезапуск auto_unlocker
+    await restart_auto_unlocker_and_notify(update, logger, "Расписание <b>включено</b>.\nAuto_unlocker перезапущен, изменения применены.", "Расписание <b>включено</b>, но не удалось перезапустить auto_unlocker")
 
 async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /disable_schedule от chat_id={update.effective_chat.id}")
@@ -239,7 +287,8 @@ async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg = load_config()
     cfg["schedule_enabled"] = False
     save_config(cfg)
-    await update.message.reply_text("Расписание <b>отключено</b>.", parse_mode="HTML")
+    # Перезапуск auto_unlocker
+    await restart_auto_unlocker_and_notify(update, logger, "Расписание <b>отключено</b>.\nAuto_unlocker перезапущен, изменения применены.", "Расписание <b>отключено</b>, но не удалось перезапустить auto_unlocker")
 
 async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /open от chat_id={update.effective_chat.id}")
@@ -298,7 +347,8 @@ async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg = load_config()
     cfg["timezone"] = tz
     save_config(cfg)
-    await update.message.reply_text(f"Часовой пояс изменён на <code>{tz}</code>.", parse_mode="HTML")
+    # Перезапуск auto_unlocker
+    await restart_auto_unlocker_and_notify(update, logger, f"Часовой пояс изменён на <code>{tz}</code>.<br>Auto_unlocker перезапущен, изменения применены.", "Часовой пояс изменён, но не удалось перезапустить auto_unlocker")
     return ConversationHandler.END
 
 async def settime_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -340,7 +390,6 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if val.lower() == "off":
         new_time = None
     else:
-        # Проверка формата времени
         import re
         if not re.match(r"^\d{2}:\d{2}$", val):
             await update.message.reply_text("Некорректный формат времени. Введите в формате ЧЧ:ММ, например 09:00, или 'off'.")
@@ -352,7 +401,8 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg["open_times"][day] = new_time
     save_config(cfg)
     day_ru = DAY_MAP_INV[day]
-    await update.message.reply_text(f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}.")
+    # Перезапуск auto_unlocker
+    await restart_auto_unlocker_and_notify(update, logger, f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}.\nAuto_unlocker перезапущен, изменения применены.", f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}, но не удалось перезапустить auto_unlocker")
     # Предложить выбрать другой день или завершить
     kb = [[d] for d in DAYS_RU]
     await update.message.reply_text(
@@ -439,7 +489,8 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cfg["breaks"][day] = []
     cfg["breaks"][day].append(val)
     save_config(cfg)
-    await update.message.reply_text(f"Перерыв {val} добавлен.")
+    # Перезапуск auto_unlocker
+    await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {val} добавлен.\nAuto_unlocker перезапущен, изменения применены.", "Перерыв добавлен, но не удалось перезапустить auto_unlocker")
     return await setbreak_day(update, context)
 
 async def setbreak_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -463,8 +514,16 @@ async def setbreak_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     removed = br.pop(idx)
     cfg["breaks"][day] = br
     save_config(cfg)
-    await update.message.reply_text(f"Перерыв {removed} удалён.")
+    # Перезапуск auto_unlocker
+    await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {removed} удалён.\nAuto_unlocker перезапущен, изменения применены.", "Перерыв удален, но не удалось перезапустить auto_unlocker")
     return await setbreak_day(update, context)
+
+async def restart_auto_unlocker_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получена команда /restart_auto_unlocker от chat_id={update.effective_chat.id}")
+    if not is_authorized(update):
+        await update.message.reply_text("Нет доступа.")
+        return
+    await restart_auto_unlocker_and_notify(update, logger, "auto_unlocker перезапущен по команде.", "Не удалось перезапустить auto_unlocker")
 
 def main():
     """
@@ -519,6 +578,7 @@ def main():
     app.add_handler(CommandHandler('disable_schedule', disable_schedule))
     app.add_handler(CommandHandler('open', open_lock))
     app.add_handler(CommandHandler('close', close_lock))
+    app.add_handler(CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd))
     logger.info("Telegram-бот успешно запущен и готов к работе.")
     app.run_polling()
 

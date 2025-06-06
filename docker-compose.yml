@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./env/.env
+    environment:
+      - TZ=Asia/Novosibirsk
     volumes:
       - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
@@ -25,6 +27,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./env/.env
+    environment:
+      - TZ=Asia/Novosibirsk
     depends_on:
       - auto_unlocker
     volumes:

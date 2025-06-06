@@ -3,6 +3,10 @@ import requests
 import time
 import hashlib
 import urllib3
+import pytz
+from datetime import datetime
+import json
+import logging
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -11,6 +15,7 @@ TTLOCK_CLIENT_SECRET = os.getenv("TTLOCK_CLIENT_SECRET")
 TTLOCK_USERNAME = os.getenv("TTLOCK_USERNAME")
 TTLOCK_PASSWORD = os.getenv("TTLOCK_PASSWORD")
 DEBUG = os.getenv("DEBUG", "0").lower() in ("1", "true", "yes")
+CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
 
 def get_token(logger=None):
@@ -225,4 +230,34 @@ def get_lock_status(token, lock_id, logger=None):
             logger.error(f"Ошибка получения статуса замка: {str(e)}")
         if DEBUG:
             print(f"Ошибка получения статуса замка: {str(e)}")
-        return None 
+        return None
+
+
+def get_timezone(config_path=CONFIG_PATH):
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        tz = pytz.timezone(config.get("timezone", "Asia/Novosibirsk"))
+    except Exception:
+        tz = pytz.timezone("Asia/Novosibirsk")
+    return tz
+
+
+def get_now(config_path=CONFIG_PATH):
+    tz = get_timezone(config_path)
+    return datetime.now(tz)
+
+
+class TZFormatter(logging.Formatter):
+    def __init__(self, fmt, datefmt, config_path=CONFIG_PATH):
+        super().__init__(fmt, datefmt)
+        self.config_path = config_path
+
+    def formatTime(self, record, datefmt=None):
+        tz = get_timezone(self.config_path)
+        ct = datetime.fromtimestamp(record.created, tz)
+        if datefmt:
+            s = ct.strftime(datefmt)
+        else:
+            s = ct.isoformat()
+        return s 
