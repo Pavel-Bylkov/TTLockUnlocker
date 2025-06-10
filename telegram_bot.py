@@ -135,20 +135,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /start от chat_id={update.effective_chat.id}")
     if DEBUG:
         logger.debug(f"/start вызван от chat_id={update.effective_chat.id}")
-    menu = (
-        "Привет! Я бот для управления замками TTLock.\n\n"
-        "<b>Доступные команды:</b>\n"
-        "/setchat — сменить получателя уведомлений\n"
-        "/status — статус расписания\n"
-        "/enable_schedule — включить расписание\n"
-        "/disable_schedule — выключить расписание\n"
-        "/settimezone — сменить часовой пояс\n"
-        "/settime — сменить время открытия\n"
-        "/setbreak — настроить перерывы\n"
-        "/open — открыть замок\n"
-        "/close — закрыть замок\n"
-    )
-    await update.message.reply_text(menu, parse_mode="HTML")
+    await menu(update, context)
 
 async def setchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -262,17 +249,6 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_str = f"<b>Сервис автооткрытия:</b> <code>{rus_status}</code>"
     except Exception as e:
         status_str = ""  # Не показываем статус, если контейнер не найден или нет доступа
-    # Последние логи auto_unlocker
-    log_path = "logs/auto_unlocker.log"
-    try:
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()[-10:]
-            logs = "\n".join([line.strip() for line in lines])
-        else:
-            logs = "Лог-файл не найден."
-    except Exception as e:
-        logs = f"Ошибка чтения логов: {e}"
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
@@ -287,7 +263,6 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "<b>Перерывы:</b>\n"
         for day, br in breaks_with_values.items():
             msg += f"{DAY_MAP_INV.get(day, day.title())}: {', '.join(br)}\n"
-    msg += "\n<b>Последние логи сервиса:</b>\n<code>" + logs + "</code>"
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -576,6 +551,48 @@ async def restart_auto_unlocker_cmd(update: Update, context: ContextTypes.DEFAUL
         return
     await restart_auto_unlocker_and_notify(update, logger, "Сервис автооткрытия перезапущен по команде.", "Не удалось перезапустить сервис автооткрытия")
 
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Выводит список всех доступных команд.
+    """
+    menu_text = (
+        "<b>Доступные команды:</b>\n"
+        "/menu — показать это меню\n"
+        "/setchat — сменить получателя уведомлений\n"
+        "/status — статус расписания\n"
+        "/enable_schedule — включить расписание\n"
+        "/disable_schedule — выключить расписание\n"
+        "/settimezone — сменить часовой пояс\n"
+        "/settime — сменить время открытия\n"
+        "/setbreak — настроить перерывы\n"
+        "/open — открыть замок\n"
+        "/close — закрыть замок\n"
+        "/logs — последние логи сервиса\n"
+    )
+    await update.message.reply_text(menu_text, parse_mode="HTML")
+
+async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Показывает последние записи из логов сервиса автооткрытия.
+    """
+    log_path = "logs/auto_unlocker.log"
+    try:
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()[-10:]
+            # Замена дней недели на русский
+            days_en = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            days_ru = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+            logs = "\n".join([line.strip() for line in lines])
+            for en, ru in zip(days_en, days_ru):
+                logs = logs.replace(en, ru)
+        else:
+            logs = "Лог-файл не найден."
+    except Exception as e:
+        logs = f"Ошибка чтения логов: {e}"
+    msg = f"<b>Последние логи сервиса:</b>\n<code>{logs}</code>"
+    await update.message.reply_text(msg, parse_mode="HTML")
+
 def main():
     """
     Точка входа: запускает Telegram-бота и обработчики команд.
@@ -620,6 +637,8 @@ def main():
         fallbacks=[]
     )
     app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('menu', menu))
+    app.add_handler(CommandHandler('logs', logs))
     app.add_handler(conv_handler)
     app.add_handler(tz_conv)
     app.add_handler(settime_conv)
