@@ -35,6 +35,7 @@ services:
       - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
       - ./config.json:/app/config.json  # настройки
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   shared_data: 

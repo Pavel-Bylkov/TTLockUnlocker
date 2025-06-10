@@ -229,16 +229,16 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def restart_auto_unlocker_and_notify(update, logger, message_success, message_error):
     if DEBUG:
-        logger.debug("Пробую перезапустить auto_unlocker контейнер...")
+        logger.debug("Пробую перезапустить сервис автооткрытия...")
     try:
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
         container.restart()
         await update.message.reply_text(message_success, parse_mode="HTML")
-        logger.info("auto_unlocker контейнер перезапущен после изменения конфигурации.")
+        logger.info("Сервис автооткрытия перезапущен после изменения конфигурации.")
     except Exception as e:
         await update.message.reply_text(f"{message_error}: {e}", parse_mode="HTML")
-        logger.error(f"Ошибка перезапуска auto_unlocker: {e}")
+        logger.error(f"Ошибка перезапуска сервиса автооткрытия: {e}")
         log_exception(logger)
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -257,9 +257,12 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
-        status_str = f"<b>auto_unlocker:</b> <code>{container.status}</code>"
+        # Перевод статуса контейнера
+        status_map = {"running": "работает", "exited": "остановлен", "created": "создан", "paused": "приостановлен", "restarting": "перезапускается"}
+        rus_status = status_map.get(container.status, container.status)
+        status_str = f"<b>Сервис автооткрытия:</b> <code>{rus_status}</code>"
     except Exception as e:
-        status_str = f"<b>auto_unlocker:</b> <code>не найден</code>"
+        status_str = f"<b>Сервис автооткрытия:</b> <code>не найден</code>"
     # Последние логи auto_unlocker
     log_path = "logs/auto_unlocker.log"
     try:
@@ -277,11 +280,14 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += status_str + "\n"
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
-        msg += f"{day.title()}: {t or '-'}\n"
-    msg += "<b>Перерывы:</b>\n"
-    for day, br in breaks.items():
-        msg += f"{day.title()}: {', '.join(br) if br else '-'}\n"
-    msg += "\n<b>Последние логи auto_unlocker:</b>\n<code>" + logs + "</code>"
+        msg += f"{DAY_MAP_INV.get(day, day.title())}: {t if t else 'выключено'}\n"
+    # Только дни с перерывами
+    breaks_with_values = {day: br for day, br in breaks.items() if br}
+    if breaks_with_values:
+        msg += "<b>Перерывы:</b>\n"
+        for day, br in breaks_with_values.items():
+            msg += f"{DAY_MAP_INV.get(day, day.title())}: {', '.join(br)}\n"
+    msg += "\n<b>Последние логи сервиса:</b>\n<code>" + logs + "</code>"
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -319,7 +325,7 @@ async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     lock_id = TTLOCK_LOCK_ID
     if not lock_id:
-        await update.message.reply_text("lock_id не задан в .env!")
+        await update.message.reply_text("ID замка не задан в .env!")
         return
     token = ttlock_api.get_token(logger)
     if not token:
@@ -340,7 +346,7 @@ async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     lock_id = TTLOCK_LOCK_ID
     if not lock_id:
-        await update.message.reply_text("lock_id не задан в .env!")
+        await update.message.reply_text("ID замка не задан в .env!")
         return
     token = ttlock_api.get_token(logger)
     if not token:
@@ -404,7 +410,7 @@ async def settime_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SETTIME_DAY
     context.user_data['settime_day'] = DAY_MAP[text]
     await update.message.reply_text(
-        f"Введите время открытия для {text} (например, 09:00) или 'off' для отключения открытия в этот день.",
+        f"Введите время открытия для {text} (например, 09:00) или 'выключено' для отключения открытия в этот день.",
         reply_markup=ReplyKeyboardMarkup([["Назад", "Отмена"]], one_time_keyboard=True, resize_keyboard=True)
     )
     return SETTIME_VALUE
@@ -417,12 +423,12 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if val.lower() == "назад":
         return await settime_start(update, context)
     day = context.user_data.get('settime_day')
-    if val.lower() == "off":
+    if val.lower() in ("off", "выключено"):
         new_time = None
     else:
         import re
         if not re.match(r"^\d{2}:\d{2}$", val):
-            await update.message.reply_text("Некорректный формат времени. Введите в формате ЧЧ:ММ, например 09:00, или 'off'.")
+            await update.message.reply_text("Некорректный формат времени. Введите в формате ЧЧ:ММ, например 09:00, или 'выключено'.")
             return SETTIME_VALUE
         new_time = val
     cfg = load_config()
@@ -431,7 +437,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg["open_times"][day] = new_time
     save_config(cfg)
     day_ru = DAY_MAP_INV[day]
-    await restart_auto_unlocker_and_notify(update, logger, f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}.\nAuto_unlocker перезапущен, изменения применены.", f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}, но не удалось перезапустить auto_unlocker")
+    await restart_auto_unlocker_and_notify(update, logger, f"Время открытия для {day_ru} установлено: {new_time or 'выключено'}.\nСервис автооткрытия перезапущен, изменения применены.", f"Время открытия для {day_ru} установлено: {new_time or 'выключено'}, но не удалось перезапустить сервис автооткрытия")
     kb = [[d] for d in DAYS_RU] + [["Назад", "Отмена"]]
     await update.message.reply_text(
         "Хотите изменить время для другого дня? Выберите день или Отмена.",
@@ -536,7 +542,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cfg["breaks"][day] = []
     cfg["breaks"][day].append(val)
     save_config(cfg)
-    await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {val} добавлен.\nAuto_unlocker перезапущен, изменения применены.", "Перерыв добавлен, но не удалось перезапустить auto_unlocker")
+    await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {val} добавлен.\nСервис автооткрытия перезапущен, изменения применены.", "Перерыв добавлен, но не удалось перезапустить сервис автооткрытия")
     return await setbreak_day(update, context)
 
 async def setbreak_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -560,7 +566,7 @@ async def setbreak_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     removed = br.pop(idx)
     cfg["breaks"][day] = br
     save_config(cfg)
-    await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {removed} удалён.\nAuto_unlocker перезапущен, изменения применены.", "Перерыв удален, но не удалось перезапустить auto_unlocker")
+    await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {removed} удалён.\nСервис автооткрытия перезапущен, изменения применены.", "Перерыв удалён, но не удалось перезапустить сервис автооткрытия")
     return await setbreak_day(update, context)
 
 async def restart_auto_unlocker_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -568,7 +574,7 @@ async def restart_auto_unlocker_cmd(update: Update, context: ContextTypes.DEFAUL
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
-    await restart_auto_unlocker_and_notify(update, logger, "auto_unlocker перезапущен по команде.", "Не удалось перезапустить auto_unlocker")
+    await restart_auto_unlocker_and_notify(update, logger, "Сервис автооткрытия перезапущен по команде.", "Не удалось перезапустить сервис автооткрытия")
 
 def main():
     """
