@@ -12,10 +12,10 @@
   },
   "breaks": {
     "monday": [],
-    "tuesday": [],
+    "tuesday": ["09:10-09:15"],
     "wednesday": [],
     "thursday": [],
-    "friday": ["21:40-21:45"],
+    "friday": [],
     "saturday": [],
     "sunday": []
   }

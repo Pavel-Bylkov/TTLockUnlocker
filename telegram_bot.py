@@ -87,12 +87,18 @@ if missing_vars:
 
 def load_config():
     try:
+        if DEBUG:
+            logger.debug(f"Чтение конфигурации из {CONFIG_PATH}")
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        if DEBUG:
+            logger.debug(f"Ошибка чтения config: {e}")
         return {}
 
 def save_config(cfg):
+    if DEBUG:
+        logger.debug(f"Сохраняю конфиг в {CONFIG_PATH}: {cfg}")
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
@@ -100,6 +106,8 @@ def save_config(cfg):
 AUTHORIZED_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def send_telegram_message(token, chat_id, text):
+    if DEBUG:
+        logger.debug(f"Отправка сообщения в Telegram: chat_id={chat_id}, text={text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -114,7 +122,10 @@ def send_telegram_message(token, chat_id, text):
         logger.warning(f"Ошибка отправки Telegram: {str(e)}\n{traceback.format_exc()}")
 
 def is_authorized(update):
-    return str(update.effective_chat.id) == str(AUTHORIZED_CHAT_ID)
+    cid = str(update.effective_chat.id)
+    if DEBUG:
+        logger.debug(f"Проверка авторизации chat_id={cid}, разрешённый={AUTHORIZED_CHAT_ID}")
+    return cid == str(AUTHORIZED_CHAT_ID)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -122,7 +133,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     logger.info(f"Получена команда /start от chat_id={update.effective_chat.id}")
     if DEBUG:
-        print("[DEBUG] /start вызван")
+        logger.debug(f"/start вызван от chat_id={update.effective_chat.id}")
     menu = (
         "Привет! Я бот для управления замками TTLock.\n\n"
         "<b>Доступные команды:</b>\n"
@@ -144,7 +155,7 @@ async def setchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     logger.info(f"Получена команда /setchat от chat_id={update.effective_chat.id}")
     if DEBUG:
-        print(f"[DEBUG] /setchat вызван от chat_id={update.message.chat_id}")
+        logger.debug(f"/setchat вызван от chat_id={update.message.chat_id}")
     await update.message.reply_text("Введите кодовое слово:")
     return ASK_CODEWORD
 
@@ -153,16 +164,16 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Проверяет введённое кодовое слово. Если верно — предлагает подтвердить смену chat_id.
     """
     if DEBUG:
-        print(f"[DEBUG] check_codeword: введено '{update.message.text.strip()}', ожидается '{CODEWORD}'")
+        logger.debug(f"check_codeword: введено '{update.message.text.strip()}', ожидается '{CODEWORD}'")
     if update.message.text.strip() == CODEWORD:
         if DEBUG:
-            print(f"[DEBUG] Кодовое слово верно. chat_id={update.message.chat_id}")
+            logger.debug(f"Кодовое слово верно. chat_id={update.message.chat_id}")
         await update.message.reply_text("Кодовое слово верно! Подтвердите смену получателя (да/нет):")
         context.user_data['new_chat_id'] = update.message.chat_id
         return CONFIRM_CHANGE
     else:
         if DEBUG:
-            print("[DEBUG] Неверное кодовое слово")
+            logger.debug("[DEBUG] Неверное кодовое слово")
         await update.message.reply_text("Неверное кодовое слово.")
         return ConversationHandler.END
 
@@ -171,16 +182,16 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Подтверждает смену chat_id, обновляет .env и перезапускает auto_unlocker (если возможно).
     """
     if DEBUG:
-        print(f"[DEBUG] confirm_change: ответ пользователя '{update.message.text}'")
+        logger.debug(f"confirm_change: ответ пользователя '{update.message.text}'")
     if update.message.text.lower() == 'да':
         new_chat_id = str(context.user_data['new_chat_id'])
         if DEBUG:
-            print(f"[DEBUG] Начинаю запись chat_id={new_chat_id} в {ENV_PATH}")
+            logger.debug(f"[DEBUG] Начинаю запись chat_id={new_chat_id} в {ENV_PATH}")
         try:
             with open(ENV_PATH, 'r') as f:
                 lines = f.readlines()
             if DEBUG:
-                print(f"[DEBUG] Прочитано {len(lines)} строк из .env")
+                logger.debug(f"[DEBUG] Прочитано {len(lines)} строк из .env")
         except Exception as e:
             print(f"[ERROR] Не удалось прочитать .env: {e}")
             await update.message.reply_text(f"Ошибка чтения .env: {e}")
@@ -193,15 +204,15 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f.write(f'TELEGRAM_CHAT_ID={new_chat_id}\n')
                         found = True
                         if DEBUG:
-                            print(f"[DEBUG] Заменяю строку: TELEGRAM_CHAT_ID={new_chat_id}")
+                            logger.debug(f"[DEBUG] Заменяю строку: TELEGRAM_CHAT_ID={new_chat_id}")
                     else:
                         f.write(line)
                 if not found:
                     f.write(f'TELEGRAM_CHAT_ID={new_chat_id}\n')
                     if DEBUG:
-                        print(f"[DEBUG] Добавляю строку: TELEGRAM_CHAT_ID={new_chat_id}")
+                        logger.debug(f"[DEBUG] Добавляю строку: TELEGRAM_CHAT_ID={new_chat_id}")
             if DEBUG:
-                print(f"[DEBUG] Запись в .env завершена")
+                logger.debug(f"[DEBUG] Запись в .env завершена")
             logging.info(f"Chat ID изменён на {new_chat_id} в .env")
         except Exception as e:
             print(f"[ERROR] Не удалось записать .env: {e}")
@@ -211,11 +222,13 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await restart_auto_unlocker_and_notify(update, logger, "Получатель уведомлений изменён, скрипт перезапущен.", "Ошибка перезапуска контейнера")
     else:
         if DEBUG:
-            print("[DEBUG] Операция отменена пользователем")
+            logger.debug("[DEBUG] Операция отменена пользователем")
         await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
 async def restart_auto_unlocker_and_notify(update, logger, message_success, message_error):
+    if DEBUG:
+        logger.debug("Пробую перезапустить auto_unlocker контейнер...")
     try:
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
@@ -229,6 +242,8 @@ async def restart_auto_unlocker_and_notify(update, logger, message_success, mess
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /status от chat_id={update.effective_chat.id}")
+    if DEBUG:
+        logger.debug("Выполняется /status, загружаю config и логи auto_unlocker...")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -270,6 +285,8 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /enable_schedule от chat_id={update.effective_chat.id}")
+    if DEBUG:
+        logger.debug("Включаю расписание через /enable_schedule")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -281,6 +298,8 @@ async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /disable_schedule от chat_id={update.effective_chat.id}")
+    if DEBUG:
+        logger.debug("Отключаю расписание через /disable_schedule")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -292,6 +311,8 @@ async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /open от chat_id={update.effective_chat.id}")
+    if DEBUG:
+        logger.debug("Выполняется /open, обращаюсь к TTLock API...")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -311,6 +332,8 @@ async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /close от chat_id={update.effective_chat.id}")
+    if DEBUG:
+        logger.debug("Выполняется /close, обращаюсь к TTLock API...")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return
@@ -329,6 +352,8 @@ async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ошибка закрытия замка: {resp.get('errmsg')} (код {resp.get('errcode')})", parse_mode="HTML")
 
 async def settimezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if DEBUG:
+        logger.debug("Выполняется /settimezone, ожидаю ввод TZ...")
     if not is_authorized(update):
         await update.message.reply_text("Нет доступа.")
         return ConversationHandler.END
@@ -338,6 +363,8 @@ async def settimezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SET_TIMEZONE
 
 async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if DEBUG:
+        logger.debug(f"Пользователь вводит TZ: {update.message.text.strip()}")
     tz = update.message.text.strip()
     try:
         pytz.timezone(tz)
@@ -352,10 +379,12 @@ async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def settime_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_authorized(update):
-        await update.message.reply_text("Нет доступа.")
+    if DEBUG:
+        logger.debug("Выполняется /settime, ожидаю выбор дня недели...")
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
+        await update.message.reply_text("Нет доступа.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    kb = [[d] for d in DAYS_RU]
+    kb = [[d] for d in DAYS_RU] + [["Назад", "Отмена"]]
     await update.message.reply_text(
         "Выберите день недели:",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True)
@@ -364,27 +393,27 @@ async def settime_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def settime_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if text.lower() == "/cancel":
+    if text.lower() == "отмена":
         await update.message.reply_text("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    if text.lower() == "/back":
+    if text.lower() == "назад":
         return await settime_start(update, context)
     if text not in DAYS_RU:
-        await update.message.reply_text("Пожалуйста, выберите день из списка или /cancel.")
+        await update.message.reply_text("Пожалуйста, выберите день из списка или Отмена.")
         return SETTIME_DAY
     context.user_data['settime_day'] = DAY_MAP[text]
     await update.message.reply_text(
-        f"Введите время открытия для {text} (например, 09:00) или 'off' для отключения открытия в этот день.\nКоманды: /back — назад, /cancel — отмена.",
-        reply_markup=ReplyKeyboardRemove()
+        f"Введите время открытия для {text} (например, 09:00) или 'off' для отключения открытия в этот день.",
+        reply_markup=ReplyKeyboardMarkup([["Назад", "Отмена"]], one_time_keyboard=True, resize_keyboard=True)
     )
     return SETTIME_VALUE
 
 async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     val = update.message.text.strip()
-    if val.lower() == "/cancel":
-        await update.message.reply_text("Ввод отменён.")
+    if val.lower() == "отмена":
+        await update.message.reply_text("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    if val.lower() == "/back":
+    if val.lower() == "назад":
         return await settime_start(update, context)
     day = context.user_data.get('settime_day')
     if val.lower() == "off":
@@ -401,21 +430,21 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg["open_times"][day] = new_time
     save_config(cfg)
     day_ru = DAY_MAP_INV[day]
-    # Перезапуск auto_unlocker
     await restart_auto_unlocker_and_notify(update, logger, f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}.\nAuto_unlocker перезапущен, изменения применены.", f"Время открытия для {day_ru} установлено: {new_time or 'отключено'}, но не удалось перезапустить auto_unlocker")
-    # Предложить выбрать другой день или завершить
-    kb = [[d] for d in DAYS_RU]
+    kb = [[d] for d in DAYS_RU] + [["Назад", "Отмена"]]
     await update.message.reply_text(
-        "Хотите изменить время для другого дня? Выберите день или /cancel.",
+        "Хотите изменить время для другого дня? Выберите день или Отмена.",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True)
     )
     return SETTIME_DAY
 
 async def setbreak_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_authorized(update):
-        await update.message.reply_text("Нет доступа.")
+    if DEBUG:
+        logger.debug("Выполняется /setbreak, ожидаю выбор дня недели для настройки перерывов...")
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
+        await update.message.reply_text("Нет доступа.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    kb = [[d] for d in DAYS_RU]
+    kb = [[d] for d in DAYS_RU] + [["Назад", "Отмена"]]
     await update.message.reply_text(
         "Выберите день недели для настройки перерывов:",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True)
@@ -424,13 +453,13 @@ async def setbreak_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if text.lower() == "/cancel":
+    if text.lower() == "отмена":
         await update.message.reply_text("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    if text.lower() == "/back":
+    if text.lower() == "назад":
         return await setbreak_start(update, context)
     if text not in DAYS_RU:
-        await update.message.reply_text("Пожалуйста, выберите день из списка или /cancel.")
+        await update.message.reply_text("Пожалуйста, выберите день из списка или Отмена.")
         return SETBREAK_DAY
     context.user_data['setbreak_day'] = DAY_MAP[text]
     cfg = load_config()
@@ -441,41 +470,58 @@ async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += f"{i}. {interval}\n"
     else:
         msg += "Нет перерывов.\n"
-    msg += "\nЧто хотите сделать?\nДобавить — /add\nУдалить — /del\nНазад — /back\nОтмена — /cancel"
-    await update.message.reply_text(msg, reply_markup=ReplyKeyboardRemove())
+    msg += "\nЧто хотите сделать?"
+    await update.message.reply_text(
+        msg,
+        reply_markup=ReplyKeyboardMarkup([
+            ["Добавить", "Удалить"],
+            ["Назад", "Отмена"]
+        ], one_time_keyboard=True, resize_keyboard=True)
+    )
     return SETBREAK_ACTION
 
 async def setbreak_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().lower()
-    if text == "/cancel":
-        await update.message.reply_text("Ввод отменён.")
+    if text == "отмена":
+        await update.message.reply_text("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    if text == "/back":
+    if text == "назад":
         return await setbreak_start(update, context)
-    if text == "/add":
-        await update.message.reply_text("Введите интервал перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 13:00-14:00).\n/back — назад, /cancel — отмена.")
+    if text == "добавить":
+        await update.message.reply_text(
+            "Введите интервал перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 13:00-14:00).",
+            reply_markup=ReplyKeyboardRemove()
+        )
         return SETBREAK_ADD
-    if text == "/del":
+    if text == "удалить":
         cfg = load_config()
         day = context.user_data['setbreak_day']
         br = cfg.get("breaks", {}).get(day, [])
         if not br:
-            await update.message.reply_text("Нет перерывов для удаления. /back — назад.")
+            await update.message.reply_text("Нет перерывов для удаления.", reply_markup=ReplyKeyboardMarkup([
+                ["Добавить", "Назад", "Отмена"]
+            ], one_time_keyboard=True, resize_keyboard=True))
             return SETBREAK_ACTION
         msg = "Выберите номер перерыва для удаления:\n"
         for i, interval in enumerate(br, 1):
             msg += f"{i}. {interval}\n"
-        await update.message.reply_text(msg)
+        await update.message.reply_text(msg, reply_markup=ReplyKeyboardRemove())
         return SETBREAK_DEL
-    await update.message.reply_text("Пожалуйста, выберите действие: /add, /del, /back, /cancel.")
+    await update.message.reply_text(
+        "Пожалуйста, выберите действие:",
+        reply_markup=ReplyKeyboardMarkup([
+            ["Добавить", "Удалить"],
+            ["Назад", "Отмена"]
+        ], one_time_keyboard=True, resize_keyboard=True)
+    )
     return SETBREAK_ACTION
 
 async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     val = update.message.text.strip()
-    if val.lower() == "/cancel":
-        await update.message.reply_text("Ввод отменён.")
+    if val.lower() == "отмена":
+        await update.message.reply_text("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    if val.lower() == "/back":
+    if val.lower() == "назад":
         return await setbreak_day(update, context)
     import re
     if not re.match(r"^\d{2}:\d{2}-\d{2}:\d{2}$", val):
@@ -489,32 +535,30 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cfg["breaks"][day] = []
     cfg["breaks"][day].append(val)
     save_config(cfg)
-    # Перезапуск auto_unlocker
     await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {val} добавлен.\nAuto_unlocker перезапущен, изменения применены.", "Перерыв добавлен, но не удалось перезапустить auto_unlocker")
     return await setbreak_day(update, context)
 
 async def setbreak_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     val = update.message.text.strip()
-    if val.lower() == "/cancel":
-        await update.message.reply_text("Ввод отменён.")
+    if val.lower() == "отмена":
+        await update.message.reply_text("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-    if val.lower() == "/back":
+    if val.lower() == "назад":
         return await setbreak_day(update, context)
     try:
         idx = int(val) - 1
     except Exception:
-        await update.message.reply_text("Введите номер перерыва для удаления или /back.")
+        await update.message.reply_text("Введите номер перерыва для удаления или Назад.")
         return SETBREAK_DEL
     day = context.user_data['setbreak_day']
     cfg = load_config()
     br = cfg.get("breaks", {}).get(day, [])
     if not (0 <= idx < len(br)):
-        await update.message.reply_text("Некорректный номер. /back — назад.")
+        await update.message.reply_text("Некорректный номер. Назад — назад.")
         return SETBREAK_DEL
     removed = br.pop(idx)
     cfg["breaks"][day] = br
     save_config(cfg)
-    # Перезапуск auto_unlocker
     await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {removed} удалён.\nAuto_unlocker перезапущен, изменения применены.", "Перерыв удален, но не удалось перезапустить auto_unlocker")
     return await setbreak_day(update, context)
 
@@ -530,7 +574,7 @@ def main():
     Точка входа: запускает Telegram-бота и обработчики команд.
     """
     if DEBUG:
-        print("[DEBUG] Запуск Telegram-бота...")
+        logger.debug("Запуск Telegram-бота...")
     if not BOT_TOKEN:
         print("[ERROR] TELEGRAM_BOT_TOKEN не задан в .env!")
         return
