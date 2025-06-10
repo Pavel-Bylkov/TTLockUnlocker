@@ -18,11 +18,13 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import ttlock_api
 
+# Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
+ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
+# Загрузка переменных окружения
+load_dotenv(ENV_PATH)
+
 # Уровень отладки
 DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
-
-# Загрузка переменных окружения из .env
-load_dotenv()
 
 # Отключаем предупреждения SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

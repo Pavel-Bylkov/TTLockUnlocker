@@ -21,11 +21,16 @@ import pytz
 import traceback
 from telegram_utils import send_telegram_message, is_authorized, log_exception
 
+# Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
+ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
 # Загрузка переменных окружения
-load_dotenv('/app/.env')
+load_dotenv(ENV_PATH)
 
 # Уровень отладки
 DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
+
+if DEBUG:
+    print(f"[DEBUG] Используется путь к .env: {ENV_PATH}")
 
 # Настройка логирования
 os.makedirs('logs', exist_ok=True)
@@ -44,10 +49,6 @@ console.setFormatter(formatter)
 logger.addHandler(console)
 
 CODEWORD = os.getenv('TELEGRAM_CODEWORD', 'secretword')
-# Определяем путь к .env: сначала из ENV_PATH, иначе ./env
-ENV_PATH = os.getenv('ENV_PATH') or './.env'
-if DEBUG:
-    print(f"[DEBUG] Используется путь к .env: {ENV_PATH}")
 AUTO_UNLOCKER_CONTAINER = os.getenv('AUTO_UNLOCKER_CONTAINER', 'auto_unlocker_1')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
@@ -381,7 +382,7 @@ async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def settime_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if DEBUG:
         logger.debug("Выполняется /settime, ожидаю выбор дня недели...")
-    if not is_authorized(update, AUTHORIZED_CHAT_ID):
+    if not is_authorized(update):
         await update.message.reply_text("Нет доступа.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
     kb = [[d] for d in DAYS_RU] + [["Назад", "Отмена"]]
@@ -441,7 +442,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def setbreak_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if DEBUG:
         logger.debug("Выполняется /setbreak, ожидаю выбор дня недели для настройки перерывов...")
-    if not is_authorized(update, AUTHORIZED_CHAT_ID):
+    if not is_authorized(update):
         await update.message.reply_text("Нет доступа.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
     kb = [[d] for d in DAYS_RU] + [["Назад", "Отмена"]]
