@@ -257,12 +257,11 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
-        # Перевод статуса контейнера
         status_map = {"running": "работает", "exited": "остановлен", "created": "создан", "paused": "приостановлен", "restarting": "перезапускается"}
         rus_status = status_map.get(container.status, container.status)
         status_str = f"<b>Сервис автооткрытия:</b> <code>{rus_status}</code>"
     except Exception as e:
-        status_str = f"<b>Сервис автооткрытия:</b> <code>не найден</code>"
+        status_str = ""  # Не показываем статус, если контейнер не найден или нет доступа
     # Последние логи auto_unlocker
     log_path = "logs/auto_unlocker.log"
     try:
@@ -277,7 +276,8 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
-    msg += status_str + "\n"
+    if status_str:
+        msg += status_str + "\n"
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
         msg += f"{DAY_MAP_INV.get(day, day.title())}: {t if t else 'выключено'}\n"

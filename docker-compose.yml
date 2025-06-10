@@ -31,6 +31,7 @@ services:
       - TZ=Asia/Novosibirsk
     depends_on:
       - auto_unlocker
+    user: root
     volumes:
       - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
