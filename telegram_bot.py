@@ -454,7 +454,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_config(cfg)
     # Перезапуск auto_unlocker
     await restart_auto_unlocker_and_notify(update, logger, f"Время открытия для {day} установлено на {time}. Auto_unlocker перезапущен, изменения применены.", f"Время открытия для {day} установлено на {time}, но не удалось перезапустить auto_unlocker")
-    await send_message(update, f"Время открытия для {day} установлено на {time}.")
+    await send_message(update, f"Время открытия для {day} установлено на {time}.\nХотите изменить время для другого дня?")
     return SETTIME_DAY
 
 async def settime_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -513,7 +513,7 @@ async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if breaks:
         msg = f"Текущие перерывы для {day}:\n" + "\n".join(breaks)
     else:
-        msg = f"Нет перерывов для {day}"
+        msg = f"Текущие перерывы для {day}:\nНет перерывов"
     await send_message(update, msg + "\n\nВыберите действие:", reply_markup=ReplyKeyboardMarkup([["Добавить", "Удалить"]], one_time_keyboard=True))
     return SETBREAK_ACTION
 
