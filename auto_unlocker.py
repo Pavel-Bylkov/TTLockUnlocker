@@ -221,7 +221,7 @@ def job() -> None:
             send_telegram_message(f"❗️ <b>Ошибка: не удалось определить lock_id</b>")
             return
 
-    result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram)
+    result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
     if not result.get("success"):
         msg = f"Не удалось открыть замок после {result.get('attempt')} попыток."
         print(msg)
@@ -269,14 +269,14 @@ def main() -> None:
                 def _close():
                     token = ttlock_api.get_token(logger)
                     if token and LOCK_ID:
-                        ttlock_api.lock_lock(token, LOCK_ID, logger, send_telegram)
+                        ttlock_api.lock_lock(token, LOCK_ID, logger, send_telegram_message)
                 return _close
 
             def make_reopen(day=day):
                 def _open():
                     token = ttlock_api.get_token(logger)
                     if token and LOCK_ID:
-                        ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram)
+                        ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
                 return _open
 
             # Закрытие в начале перерыва

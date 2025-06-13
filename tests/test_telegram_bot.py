@@ -9,10 +9,10 @@ import types
 from unittest.mock import patch, MagicMock, AsyncMock, mock_open
 from telegram import Update, Message, Chat, User
 from telegram.ext import ContextTypes
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Generator
 
 @pytest.fixture(autouse=True)
-def setup_env() -> None:
+def setup_env() -> Generator[None, None, None]:
     """
     Фикстура для настройки переменных окружения перед каждым тестом.
     """
