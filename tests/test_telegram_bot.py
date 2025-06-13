@@ -515,8 +515,12 @@ async def test_logs_command(mock_update, mock_context):
         mock_update.message.reply_text.assert_called_once()
         response_text = mock_update.message.reply_text.call_args[0][0]
         assert "Последние логи сервиса" in response_text
-        assert test_logs[0] in response_text
-        assert test_logs[1] in response_text
+        # Проверяем, что логи находятся внутри тега <code>
+        assert "<code>" in response_text
+        assert "</code>" in response_text
+        code_content = response_text[response_text.find("<code>") + 6:response_text.find("</code>")]
+        assert test_logs[0] in code_content
+        assert test_logs[1] in code_content
 
 @pytest.mark.asyncio
 async def test_logs_command_with_days(mock_update, mock_context):
@@ -536,8 +540,12 @@ async def test_logs_command_with_days(mock_update, mock_context):
         mock_update.message.reply_text.assert_called_once()
         response_text = mock_update.message.reply_text.call_args[0][0]
         assert "Последние логи сервиса" in response_text
-        assert "Понедельник" in response_text
-        assert "Вторник" in response_text
+        # Проверяем, что логи находятся внутри тега <code>
+        assert "<code>" in response_text
+        assert "</code>" in response_text
+        code_content = response_text[response_text.find("<code>") + 6:response_text.find("</code>")]
+        assert "Понедельник" in code_content
+        assert "Вторник" in code_content
 
 @pytest.mark.asyncio
 async def test_logs_command_file_not_found(mock_update, mock_context):
