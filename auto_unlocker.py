@@ -78,41 +78,65 @@ handler.setFormatter(formatter)
 logger.handlers.clear()
 logger.addHandler(handler)
 
+def log_message(category: str, message: str):
+    """
+    Унифицированная функция для логирования сообщений.
+    
+    Args:
+        category: Категория сообщения (ERROR, INFO, DEBUG)
+        message: Текст сообщения
+    """
+    if category == "ERROR":
+        print(f"[ERROR] {message}")
+        logger.error(message)
+    elif category == "INFO":
+        print(f"[INFO] {message}")
+        logger.info(message)
+    elif DEBUG and category == "DEBUG":
+        print(f"[DEBUG] {message}")
+        logger.debug(message)
+
 def load_config() -> Dict[str, Any]:
     """
-    Загружает настройки из config.json. Если нет файла — возвращает дефолтные значения.
-    
-    Returns:
-        dict: Конфигурация с настройками
+    Загружает конфигурацию из файла.
     """
-    default = {
-        "timezone": "Asia/Novosibirsk",
-        "schedule_enabled": True,
-        "open_times": {
-            "monday": "09:00",
-            "tuesday": "09:00",
-            "wednesday": "09:00",
-            "thursday": "09:00",
-            "friday": "09:00",
-            "saturday": None,
-            "sunday": None
-        },
-        "breaks": {
-            "monday": ["13:00-14:00"],
-            "tuesday": [],
-            "wednesday": [],
-            "thursday": [],
-            "friday": [],
-            "saturday": [],
-            "sunday": []
-        }
-    }
     try:
+        if DEBUG:
+            log_message("DEBUG", f"Чтение конфигурации из {CONFIG_PATH}")
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            config = json.load(f)
+            # Устанавливаем значения по умолчанию, если их нет
+            if "timezone" not in config:
+                config["timezone"] = "Asia/Novosibirsk"
+            if "schedule_enabled" not in config:
+                config["schedule_enabled"] = True
+            if "open_times" not in config:
+                config["open_times"] = {}
+            if "breaks" not in config:
+                config["breaks"] = {}
+            return config
     except Exception as e:
-        logger.warning(f"Ошибка загрузки конфигурации: {str(e)}. Используем значения по умолчанию.")
-        return default
+        log_message("ERROR", f"Ошибка чтения конфигурации: {e}")
+        # Возвращаем конфигурацию по умолчанию при ошибке
+        return {
+            "timezone": "Asia/Novosibirsk",
+            "schedule_enabled": True,
+            "open_times": {},
+            "breaks": {}
+        }
+
+def save_config(cfg: Dict[str, Any]) -> None:
+    """
+    Сохраняет конфигурацию в файл.
+    """
+    try:
+        if DEBUG:
+            log_message("DEBUG", f"Сохранение конфигурации в {CONFIG_PATH}")
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        log_message("ERROR", f"Ошибка сохранения конфигурации: {e}")
+        raise
 
 def send_telegram_message(text: str) -> None:
     """
@@ -193,46 +217,84 @@ def resolve_lock_id(token: str) -> Optional[str]:
 
 def job() -> None:
     """
-    Основная задача: открыть замок в заданное время.
+    Основная задача: проверяет время и открывает замок если нужно.
     При неудаче делает повторные попытки с временным смещением.
     """
-    global LOCK_ID
-    now = ttlock_api.get_now()
-    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
-    msg = f"\n[{now_str}] Запуск задачи открытия замка..."
-    print(msg)
-    logger.info(msg)
-    send_telegram_message(f"🔔 <b>Запуск задачи открытия замка</b>\n{now_str}")
+    logger.info("\n[%s] Запуск задачи открытия замка...", ttlock_api.get_now().strftime("%Y-%m-%d %H:%M:%S"))
     
-    token = ttlock_api.get_token(logger)
-    if not token:
-        msg = "Не удалось получить токен, задача пропущена."
-        print(msg)
-        logger.error(msg)
-        send_telegram_message(f"❗️ <b>Ошибка: не удалось получить токен</b>")
+    # Получаем текущее время в нужном часовом поясе
+    now = ttlock_api.get_now()
+    current_time = now.strftime("%H:%M")
+    current_day = now.strftime("%A").lower()
+    
+    # Проверяем, нужно ли открывать замок
+    cfg = load_config()
+    if not cfg.get("schedule_enabled", True):
+        logger.info("Расписание отключено")
         return
-
-    if LOCK_ID is None:
-        LOCK_ID = resolve_lock_id(token)
-        if not LOCK_ID:
-            msg = "Не удалось определить lock_id, задача пропущена."
-            print(msg)
-            logger.error(msg)
-            send_telegram_message(f"❗️ <b>Ошибка: не удалось определить lock_id</b>")
+        
+    # Проверяем время открытия
+    open_time = cfg.get("open_times", {}).get(current_day)
+    if not open_time:
+        logger.info("Сегодня замок не открывается")
+        return
+        
+    # Проверяем, не перерыв ли сейчас
+    breaks = cfg.get("breaks", {}).get(current_day, [])
+    for break_time in breaks:
+        start, end = break_time.split("-")
+        if start <= current_time <= end:
+            logger.info("Сейчас перерыв")
             return
-
-    result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
-    if not result.get("success"):
-        msg = f"Не удалось открыть замок после {result.get('attempt')} попыток."
-        print(msg)
-        logger.error(msg)
-        send_telegram_message(f"❗️ <b>Ошибка: {msg}</b>")
-        return
-
-    msg = f"✅ Замок успешно открыт (попытка {result.get('attempt')})"
-    print(msg)
-    logger.info(msg)
-    send_telegram_message(f"✅ <b>Замок успешно открыт</b>\nПопытка: {result.get('attempt')}")
+            
+    # Если текущее время совпадает с временем открытия
+    if current_time == open_time:
+        # Получаем токен
+        token = ttlock_api.get_token(logger)
+        if not token:
+            logger.error("Не удалось получить токен")
+            return
+            
+        # Если LOCK_ID не задан, пробуем его получить
+        if not LOCK_ID:
+            LOCK_ID = resolve_lock_id(token)
+            if not LOCK_ID:
+                logger.error("Не удалось получить ID замка")
+                return
+                
+        # Пробуем открыть замок с повторными попытками
+        max_retries = 3
+        retry_count = 0
+        success = False
+        
+        while retry_count < max_retries and not success:
+            retry_count += 1
+            result = ttlock_api.unlock_lock(token, LOCK_ID, logger)
+            
+            if result.get("errcode") == 0:
+                success = True
+                logger.info("Замок успешно открыт")
+                break
+            elif result.get("errcode") == -3037:  # Замок занят
+                if retry_count < max_retries:
+                    wait_time = 30 if retry_count == 1 else 60  # 30 сек после первой попытки, 1 мин после второй
+                    logger.warning(f"Попытка {retry_count}: Замок занят, ожидаем {wait_time} секунд...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error("Не удалось открыть замок после 3 попыток")
+                    # Смещаем время задачи на 15 минут позже
+                    new_time = (datetime.strptime(open_time, "%H:%M") + timedelta(minutes=15)).strftime("%H:%M")
+                    cfg["open_times"][current_day] = new_time
+                    save_config(cfg)
+                    logger.info(f"Время открытия смещено на {new_time}")
+            else:
+                logger.error(f"Ошибка открытия замка: {result.get('errmsg', 'Неизвестная ошибка')}")
+                break
+                
+        if not success:
+            logger.error(f"Не удалось открыть замок после {retry_count} попыток")
+    else:
+        logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
 
 def main() -> None:
     """

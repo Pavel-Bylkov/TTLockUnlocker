@@ -89,6 +89,24 @@ if missing_vars:
     print(f"[ERROR] Не заданы обязательные переменные окружения: {', '.join(missing_vars)}. Проверьте .env файл!")
     exit(1)
 
+def log_message(category: str, message: str):
+    """
+    Унифицированная функция для логирования сообщений.
+    
+    Args:
+        category: Категория сообщения (ERROR, INFO, DEBUG)
+        message: Текст сообщения
+    """
+    if category == "ERROR":
+        print(f"[ERROR] {message}")
+        logger.error(message)
+    elif category == "INFO":
+        print(f"[INFO] {message}")
+        logger.info(message)
+    elif DEBUG and category == "DEBUG":
+        print(f"[DEBUG] {message}")
+        logger.debug(message)
+
 def load_config():
     """
     Загружает конфигурацию из файла.
@@ -156,23 +174,6 @@ def is_authorized(update):
         logger.debug(f"Проверка авторизации chat_id={cid}, разрешённый={AUTHORIZED_CHAT_ID}")
     return cid == str(AUTHORIZED_CHAT_ID)
 
-def log_message(category: str, message: str):
-    """
-    Унифицированная функция для логирования сообщений.
-    
-    Args:
-        category: Категория сообщения (ERROR, INFO, DEBUG)
-        message: Текст сообщения
-    """
-    if category == "ERROR":
-        print(f"[ERROR] {message}")
-        logger.error(message)
-    elif category == "INFO":
-        print(f"[INFO] {message}")
-        logger.info(message)
-    elif DEBUG and category == "DEBUG":
-        print(f"[DEBUG] {message}")
-        logger.debug(message)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """

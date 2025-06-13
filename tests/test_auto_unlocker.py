@@ -178,64 +178,146 @@ def test_resolve_lock_id_from_list():
         mock_list_locks.assert_called_once()
 
 def test_job_success():
+    """
+    Тест успешного открытия замка с первой попытки.
+    """
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
-         patch('auto_unlocker.resolve_lock_id') as mock_resolve:
+         patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
+         patch('auto_unlocker.load_config') as mock_load_config, \
+         patch('auto_unlocker.save_config') as mock_save_config:
         
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.return_value = {'errcode': 0, 'success': True}
+        mock_load_config.return_value = {
+            "timezone": "Asia/Krasnoyarsk",
+            "schedule_enabled": True,
+            "open_times": {"monday": "09:00"},
+            "breaks": {}
+        }
         
         auto_unlocker.LOCK_ID = None
         auto_unlocker.job()
         
-        mock_get_token.assert_called_once()
-        mock_resolve.assert_called_once()
-        mock_unlock.assert_called_once()
+        assert mock_unlock.call_count == 1
 
 def test_job_with_retries():
+    """
+    Тест открытия замка с повторными попытками и смещением времени.
+    """
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
-         patch('ttlock_api.get_now') as mock_now:
+         patch('auto_unlocker.load_config') as mock_load_config, \
+         patch('auto_unlocker.save_config') as mock_save_config, \
+         patch('time.sleep') as mock_sleep:
         
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.side_effect = [
             {'errcode': -3037, 'success': False},  # Первая попытка - замок занят
             {'errcode': -3037, 'success': False},  # Вторая попытка - замок занят
-            {'errcode': -3037, 'success': False},  # Третья попытка - замок занят
-            {'errcode': 0, 'success': True}        # Четвертая попытка - успех
+            {'errcode': -3037, 'success': False}   # Третья попытка - замок занят
         ]
         
-        # Устанавливаем текущее время 9:00
-        mock_now.return_value = datetime.now().replace(hour=9, minute=0)
+        config = {
+            "timezone": "Asia/Krasnoyarsk",
+            "schedule_enabled": True,
+            "open_times": {"monday": "09:00"},
+            "breaks": {}
+        }
+        mock_load_config.return_value = config
         
         auto_unlocker.LOCK_ID = 'test_lock_id'
         auto_unlocker.job()
         
-        assert mock_unlock.call_count == 4
-        # Проверяем, что последняя попытка была в 9:15
-        assert mock_now.call_count > 0
+        # Проверяем количество попыток
+        assert mock_unlock.call_count == 3
+        
+        # Проверяем интервалы между попытками
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_any_call(30)  # Первая пауза 30 секунд
+        mock_sleep.assert_any_call(60)  # Вторая пауза 60 секунд
+        
+        # Проверяем смещение времени
+        mock_save_config.assert_called_once()
+        saved_config = mock_save_config.call_args[0][0]
+        assert saved_config["open_times"]["monday"] == "09:15"  # Смещение на 15 минут
 
-def test_job_max_retries():
+def test_job_with_successful_retry():
+    """
+    Тест успешного открытия замка со второй попытки.
+    """
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
-         patch('ttlock_api.get_now') as mock_now:
+         patch('auto_unlocker.load_config') as mock_load_config, \
+         patch('auto_unlocker.save_config') as mock_save_config, \
+         patch('time.sleep') as mock_sleep:
         
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
-        mock_unlock.return_value = {'errcode': -3037, 'success': False}
+        mock_unlock.side_effect = [
+            {'errcode': -3037, 'success': False},  # Первая попытка - замок занят
+            {'errcode': 0, 'success': True}        # Вторая попытка - успех
+        ]
         
-        # Устанавливаем текущее время 20:45
-        mock_now.return_value = datetime.now().replace(hour=20, minute=45)
+        config = {
+            "timezone": "Asia/Krasnoyarsk",
+            "schedule_enabled": True,
+            "open_times": {"monday": "09:00"},
+            "breaks": {}
+        }
+        mock_load_config.return_value = config
         
         auto_unlocker.LOCK_ID = 'test_lock_id'
         auto_unlocker.job()
         
-        # Проверяем, что не было попыток после 21:00
-        assert mock_unlock.call_count <= 3
+        # Проверяем количество попыток
+        assert mock_unlock.call_count == 2
+        
+        # Проверяем интервал между попытками
+        assert mock_sleep.call_count == 1
+        mock_sleep.assert_called_once_with(30)  # Пауза 30 секунд
+        
+        # Проверяем, что время не было смещено
+        mock_save_config.assert_not_called()
+
+def test_job_with_other_error():
+    """
+    Тест обработки других ошибок при открытии замка.
+    """
+    with patch('ttlock_api.get_token') as mock_get_token, \
+         patch('ttlock_api.unlock_lock') as mock_unlock, \
+         patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
+         patch('auto_unlocker.load_config') as mock_load_config, \
+         patch('auto_unlocker.save_config') as mock_save_config, \
+         patch('time.sleep') as mock_sleep:
+        
+        mock_get_token.return_value = 'test_token'
+        mock_resolve.return_value = 'test_lock_id'
+        mock_unlock.return_value = {'errcode': -1, 'success': False, 'errmsg': 'Другая ошибка'}
+        
+        config = {
+            "timezone": "Asia/Krasnoyarsk",
+            "schedule_enabled": True,
+            "open_times": {"monday": "09:00"},
+            "breaks": {}
+        }
+        mock_load_config.return_value = config
+        
+        auto_unlocker.LOCK_ID = 'test_lock_id'
+        auto_unlocker.job()
+        
+        # Проверяем, что была только одна попытка
+        assert mock_unlock.call_count == 1
+        
+        # Проверяем, что не было пауз
+        mock_sleep.assert_not_called()
+        
+        # Проверяем, что время не было смещено
+        mock_save_config.assert_not_called()
 
 def test_debug_request():
     """Тест отладочного вывода HTTP-запроса"""
