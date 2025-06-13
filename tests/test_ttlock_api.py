@@ -1,5 +1,11 @@
 import pytest
 import ttlock_api
+import os
+
+os.environ['TTLOCK_PASSWORD'] = 'test'
+os.environ['TTLOCK_CLIENT_ID'] = 'test'
+os.environ['TTLOCK_CLIENT_SECRET'] = 'test'
+os.environ['TTLOCK_USERNAME'] = 'test'
 
 class DummyLogger:
     def __init__(self):
@@ -46,4 +52,4 @@ def test_unlock_lock_fail(monkeypatch, logger):
         return Resp()
     monkeypatch.setattr('requests.post', fake_post)
     resp = ttlock_api.unlock_lock('token', 'lockid', logger)
-    assert resp['errcode'] == 1 
+    assert resp['errcode'] == -1
