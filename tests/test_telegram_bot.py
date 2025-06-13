@@ -371,7 +371,7 @@ async def test_settime_flow(mock_update, mock_context):
 
     # Тест выбора дня
     mock_update.message.text = "Пн"
-    with patch('telegram_bot.DAYS_MAPPING', {'Пн': 'monday'}):
+    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}):
         result = await telegram_bot.settime_day(mock_update, mock_context)
         assert result == telegram_bot.SETTIME_VALUE
         assert mock_context.user_data['day'] == "monday"
@@ -406,7 +406,7 @@ async def test_setbreak_flow(mock_update, mock_context):
 
     # Тест выбора дня
     mock_update.message.text = "Пн"
-    with patch('telegram_bot.DAYS_MAPPING', {'Пн': 'monday'}):
+    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}):
         result = await telegram_bot.setbreak_day(mock_update, mock_context)
         assert result == telegram_bot.SETBREAK_ACTION
         assert mock_context.user_data['day'] == "monday"
@@ -499,7 +499,8 @@ async def test_logs_command(mock_update, mock_context):
 
     test_log = b"Test log message"
     with patch('docker.from_env') as mock_docker, \
-         patch('telegram_bot.AUTO_UNLOCKER_CONTAINER', 'test_container'):
+         patch('telegram_bot.AUTO_UNLOCKER_CONTAINER', 'test_container'), \
+         patch('telegram_bot.logger') as mock_logger:
         mock_container = MagicMock()
         mock_container.logs.return_value = test_log
         mock_docker.return_value.containers.get.return_value = mock_container
