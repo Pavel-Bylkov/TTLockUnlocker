@@ -372,7 +372,8 @@ async def test_settime_flow(mock_update, mock_context):
     # Тест выбора дня
     mock_update.message.text = "Пн"
     with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}), \
-         patch('telegram_bot.DAYS_RU', ['Пн']):
+         patch('telegram_bot.DAYS_RU', ['Пн']), \
+         patch('telegram_bot.DAY_MAP_INV', {'monday': 'Пн'}):
         result = await telegram_bot.settime_day(mock_update, mock_context)
         assert result == telegram_bot.SETTIME_VALUE
         assert mock_context.user_data['settime_day'] == "monday"
@@ -384,10 +385,11 @@ async def test_settime_flow(mock_update, mock_context):
     mock_update.message.text = "09:00"
     with patch('telegram_bot.load_config', return_value={}), \
          patch('telegram_bot.save_config') as mock_save, \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart:
+         patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart, \
+         patch('telegram_bot.DAY_MAP_INV', {'monday': 'Пн'}):
 
         result = await telegram_bot.settime_value(mock_update, mock_context)
-        assert result == telegram_bot.ConversationHandler.END
+        assert result == telegram_bot.SETTIME_DAY  # Функция возвращает SETTIME_DAY для продолжения настройки
         mock_save.assert_called_once()
         mock_restart.assert_called_once()
 
@@ -432,7 +434,7 @@ async def test_setbreak_flow(mock_update, mock_context):
          patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart:
 
         result = await telegram_bot.setbreak_add(mock_update, mock_context)
-        assert result == telegram_bot.ConversationHandler.END
+        assert result == telegram_bot.SETBREAK_DAY  # Функция возвращает SETBREAK_DAY для продолжения настройки
         mock_save.assert_called_once()
         mock_restart.assert_called_once()
 
@@ -504,7 +506,8 @@ async def test_logs_command(mock_update, mock_context):
     with patch('docker.from_env') as mock_docker, \
          patch('telegram_bot.AUTO_UNLOCKER_CONTAINER', 'test_container'), \
          patch('telegram_bot.logger') as mock_logger, \
-         patch('telegram_bot.send_telegram_message') as mock_send:
+         patch('telegram_bot.send_telegram_message') as mock_send, \
+         patch('os.path.exists', return_value=False):  # Имитируем отсутствие файла логов
         mock_container = MagicMock()
         mock_container.logs.return_value = test_log
         mock_docker.return_value.containers.get.return_value = mock_container
