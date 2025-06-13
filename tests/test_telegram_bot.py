@@ -359,7 +359,6 @@ async def test_settimezone_apply(mock_update, mock_context):
 async def test_settime_flow(mock_update, mock_context):
     """Тест полного процесса настройки времени"""
     telegram_bot.AUTHORIZED_CHAT_ID = '123456'
-    mock_context.user_data = {}  # Инициализируем user_data
 
     # Тест начала настройки времени
     result = await telegram_bot.settime_start(mock_update, mock_context)
@@ -372,9 +371,10 @@ async def test_settime_flow(mock_update, mock_context):
 
     # Тест выбора дня
     mock_update.message.text = "Пн"
-    result = await telegram_bot.settime_day(mock_update, mock_context)
-    assert result == telegram_bot.SETTIME_VALUE
-    assert mock_context.user_data['day'] == "monday"
+    with patch('telegram_bot.DAYS_MAPPING', {'Пн': 'monday'}):
+        result = await telegram_bot.settime_day(mock_update, mock_context)
+        assert result == telegram_bot.SETTIME_VALUE
+        assert mock_context.user_data['day'] == "monday"
 
     # Сброс мока для следующего теста
     mock_update.message.reply_text.reset_mock()
@@ -394,7 +394,6 @@ async def test_settime_flow(mock_update, mock_context):
 async def test_setbreak_flow(mock_update, mock_context):
     """Тест полного процесса настройки перерывов"""
     telegram_bot.AUTHORIZED_CHAT_ID = '123456'
-    mock_context.user_data = {}  # Инициализируем user_data
 
     # Тест начала настройки перерывов
     result = await telegram_bot.setbreak_start(mock_update, mock_context)
@@ -407,9 +406,10 @@ async def test_setbreak_flow(mock_update, mock_context):
 
     # Тест выбора дня
     mock_update.message.text = "Пн"
-    result = await telegram_bot.setbreak_day(mock_update, mock_context)
-    assert result == telegram_bot.SETBREAK_ACTION
-    assert mock_context.user_data['day'] == "monday"
+    with patch('telegram_bot.DAYS_MAPPING', {'Пн': 'monday'}):
+        result = await telegram_bot.setbreak_day(mock_update, mock_context)
+        assert result == telegram_bot.SETBREAK_ACTION
+        assert mock_context.user_data['day'] == "monday"
 
     # Сброс мока для следующего теста
     mock_update.message.reply_text.reset_mock()
@@ -498,7 +498,8 @@ async def test_logs_command(mock_update, mock_context):
     telegram_bot.AUTHORIZED_CHAT_ID = '123456'
 
     test_log = b"Test log message"
-    with patch('docker.from_env') as mock_docker:
+    with patch('docker.from_env') as mock_docker, \
+         patch('telegram_bot.AUTO_UNLOCKER_CONTAINER', 'test_container'):
         mock_container = MagicMock()
         mock_container.logs.return_value = test_log
         mock_docker.return_value.containers.get.return_value = mock_container
