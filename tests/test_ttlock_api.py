@@ -8,6 +8,9 @@ def setup_env():
     os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
     os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
     os.environ['TTLOCK_USERNAME'] = 'test_username'
+    # Перезагружаем модуль, чтобы он подхватил новые переменные окружения
+    import importlib
+    importlib.reload(ttlock_api)
     yield
     # Очистка переменных окружения после теста
     for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET', 'TTLOCK_USERNAME']:
