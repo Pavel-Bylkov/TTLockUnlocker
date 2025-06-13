@@ -502,19 +502,39 @@ async def test_logs_command(mock_update, mock_context):
     """Тест команды просмотра логов"""
     telegram_bot.AUTHORIZED_CHAT_ID = '123456'
 
-    test_log = b"Test log message"
-    with patch('docker.from_env') as mock_docker, \
-         patch('telegram_bot.AUTO_UNLOCKER_CONTAINER', 'test_container'), \
-         patch('telegram_bot.logger') as mock_logger, \
-         patch('telegram_bot.send_telegram_message') as mock_send, \
-         patch('os.path.exists', return_value=False):  # Имитируем отсутствие файла логов
-        mock_container = MagicMock()
-        mock_container.logs.return_value = test_log
-        mock_docker.return_value.containers.get.return_value = mock_container
+    test_log = "Test log message"
+    with patch('os.path.exists', return_value=True), \
+         patch('builtins.open', MagicMock()) as mock_file:
+        mock_file.__enter__.return_value.readlines.return_value = [test_log]
 
         await telegram_bot.logs(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         response_text = mock_update.message.reply_text.call_args[0][0]
         assert "Последние логи сервиса" in response_text
-        assert test_log.decode() in response_text
+        assert test_log in response_text
+
+@pytest.mark.asyncio
+async def test_logs_command_file_not_found(mock_update, mock_context):
+    """Тест команды просмотра логов, когда файл не найден"""
+    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+
+    with patch('os.path.exists', return_value=False):
+        await telegram_bot.logs(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        response_text = mock_update.message.reply_text.call_args[0][0]
+        assert "Последние логи сервиса" in response_text
+        assert "Лог-файл не найден" in response_text
+
+@pytest.mark.asyncio
+async def test_logs_command_error(mock_update, mock_context):
+    """Тест команды просмотра логов при ошибке чтения"""
+    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+
+    with patch('os.path.exists', return_value=True), \
+         patch('builtins.open', MagicMock(side_effect=Exception("Test error"))):
+        await telegram_bot.logs(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        response_text = mock_update.message.reply_text.call_args[0][0]
+        assert "Последние логи сервиса" in response_text
+        assert "Ошибка чтения логов" in response_text
 
