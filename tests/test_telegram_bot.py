@@ -371,10 +371,11 @@ async def test_settime_flow(mock_update, mock_context):
 
     # Тест выбора дня
     mock_update.message.text = "Пн"
-    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}):
+    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}), \
+         patch('telegram_bot.DAYS_RU', ['Пн']):
         result = await telegram_bot.settime_day(mock_update, mock_context)
         assert result == telegram_bot.SETTIME_VALUE
-        assert mock_context.user_data['day'] == "monday"
+        assert mock_context.user_data['settime_day'] == "monday"
 
     # Сброс мока для следующего теста
     mock_update.message.reply_text.reset_mock()
@@ -406,10 +407,12 @@ async def test_setbreak_flow(mock_update, mock_context):
 
     # Тест выбора дня
     mock_update.message.text = "Пн"
-    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}):
+    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}), \
+         patch('telegram_bot.DAYS_RU', ['Пн']), \
+         patch('telegram_bot.load_config', return_value={}):
         result = await telegram_bot.setbreak_day(mock_update, mock_context)
         assert result == telegram_bot.SETBREAK_ACTION
-        assert mock_context.user_data['day'] == "monday"
+        assert mock_context.user_data['setbreak_day'] == "monday"
 
     # Сброс мока для следующего теста
     mock_update.message.reply_text.reset_mock()
@@ -500,7 +503,8 @@ async def test_logs_command(mock_update, mock_context):
     test_log = b"Test log message"
     with patch('docker.from_env') as mock_docker, \
          patch('telegram_bot.AUTO_UNLOCKER_CONTAINER', 'test_container'), \
-         patch('telegram_bot.logger') as mock_logger:
+         patch('telegram_bot.logger') as mock_logger, \
+         patch('telegram_bot.send_telegram_message') as mock_send:
         mock_container = MagicMock()
         mock_container.logs.return_value = test_log
         mock_docker.return_value.containers.get.return_value = mock_container
