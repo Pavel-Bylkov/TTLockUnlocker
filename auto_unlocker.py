@@ -34,7 +34,7 @@ client_id = os.getenv("TTLOCK_CLIENT_ID")
 client_secret = os.getenv("TTLOCK_CLIENT_SECRET")
 username = os.getenv("TTLOCK_USERNAME")
 password = os.getenv("TTLOCK_PASSWORD")
-lock_id_env = os.getenv("TTLOCK_LOCK_ID")
+# Удаляем получение lock_id_env здесь
 
 # Telegram параметры
 telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -153,6 +153,7 @@ def resolve_lock_id(token):
     :param token: access_token
     :return: lock_id или None
     """
+    lock_id_env = os.getenv("TTLOCK_LOCK_ID")  # Получаем lock_id_env здесь
     if lock_id_env:
         if DEBUG:
             print(f"lock_id найден в .env: {lock_id_env}")

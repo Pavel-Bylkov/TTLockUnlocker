@@ -145,16 +145,16 @@ def test_job_max_retries():
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
          patch('ttlock_api.get_now') as mock_now:
-        
+
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.return_value = {'errcode': -3037, 'success': False}
-        
+
         # Устанавливаем текущее время 20:45
         mock_now.return_value = datetime.now().replace(hour=20, minute=45)
-        
+
         auto_unlocker.LOCK_ID = 'test_lock_id'
         auto_unlocker.job()
-        
+
         # Проверяем, что не было попыток после 21:00
-        assert mock_unlock.call_count <= 3 
+        assert mock_unlock.call_count <= 3
