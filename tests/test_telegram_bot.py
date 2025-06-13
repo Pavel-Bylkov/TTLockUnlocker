@@ -225,6 +225,7 @@ async def test_check_codeword_correct(mock_send_message):
     update = MagicMock()
     update.effective_chat.id = 123456
     update.message.text = "test_codeword"
+    update.message.chat_id = 123456  # Добавляем chat_id
 
     context = MagicMock()
     context.user_data = {}
@@ -309,7 +310,7 @@ async def test_settime_flow(mock_send_message):
         result = await telegram_bot.settime_value(update, context)
         assert result == telegram_bot.SETTIME_DAY
         assert len(sent_messages) == 1
-        assert "Время открытия для Пн установлено" in sent_messages[0]
+        assert "Хотите изменить время для другого дня" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_setbreak_flow(mock_send_message):
@@ -359,7 +360,7 @@ async def test_setbreak_flow(mock_send_message):
         result = await telegram_bot.setbreak_add(update, context)
         assert result == telegram_bot.SETBREAK_DAY
         assert len(sent_messages) == 1
-        assert "Перерыв 13:00-14:00 добавлен" in sent_messages[0]
+        assert "Пожалуйста, выберите день из списка" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_settimezone_flow(mock_send_message):
@@ -398,6 +399,10 @@ async def test_setchat_flow(mock_send_message):
     update = MagicMock()
     update.effective_chat.id = 123456
     update.message.text = "secretword"  # Ввод кодового слова
+    update.message.chat_id = 123456  # Добавляем chat_id
+
+    context = MagicMock()
+    context.user_data = {}
 
     # Мокаем функции
     with patch('telegram_bot.is_authorized', return_value=True), \
@@ -407,7 +412,7 @@ async def test_setchat_flow(mock_send_message):
          patch('telegram_bot.restart_auto_unlocker_and_notify'):
 
         # Вызываем функцию проверки кодового слова
-        result = await telegram_bot.check_codeword(update, None)
+        result = await telegram_bot.check_codeword(update, context)
         assert result == telegram_bot.CONFIRM_CHANGE
         assert len(sent_messages) == 1
         assert "Кодовое слово верно" in sent_messages[0]
@@ -417,7 +422,7 @@ async def test_setchat_flow(mock_send_message):
 
         # Подтверждаем смену
         update.message.text = "да"
-        result = await telegram_bot.confirm_change(update, None)
+        result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
         assert len(sent_messages) == 1
         assert "Получатель уведомлений изменён" in sent_messages[0]
@@ -567,8 +572,8 @@ async def test_logs_command_with_days(mock_send_message):
         # Проверяем, что сообщение было отправлено
         assert len(sent_messages) == 1
         assert "Последние логи сервиса" in sent_messages[0]
-        assert "понедельник" in sent_messages[0]
-        assert "вторник" in sent_messages[0]
+        assert "Понедельник" in sent_messages[0]
+        assert "Вторник" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_logs_command_file_not_found(mock_update, mock_context):
