@@ -596,6 +596,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Перезапуск auto_unlocker
         await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {interval} добавлен для {day}. Auto_unlocker перезапущен, изменения применены.", f"Перерыв {interval} добавлен для {day}, но не удалось перезапустить auto_unlocker")
         await send_message(update, f"Перерыв {interval} добавлен для {day}.")
+        await send_message(update, "Пожалуйста, выберите день из списка:", reply_markup=ReplyKeyboardMarkup([DAYS_RU], one_time_keyboard=True))
         return SETBREAK_DAY
     except Exception as e:
         msg = f"Ошибка разбора интервала перерыва {interval} для {day}: {e}"
@@ -650,10 +651,10 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
         if os.path.exists(log_path):
             with open(log_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()[-10:]  # Берем последние 10 строк
-            
+
             # Фильтруем пустые строки и удаляем лишние пробелы
             non_empty_lines = [line.strip() for line in lines if line.strip()]
-            
+
             # Заменяем дни недели
             days_map = {
                 "monday": "Понедельник",
@@ -664,14 +665,14 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
                 "saturday": "Суббота",
                 "sunday": "Воскресенье"
             }
-            
+
             # Применяем замену дней недели к каждой строке
             processed_lines = []
             for line in non_empty_lines:
                 for en, ru in days_map.items():
                     line = line.replace(en, ru)
                 processed_lines.append(line)
-            
+
             # Объединяем строки
             logs = "\n".join(processed_lines)
         else:
@@ -679,7 +680,7 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     except Exception as e:
         log_message("ERROR", f"Ошибка чтения логов: {e}")
         logs = f"Ошибка чтения логов: {e}"
-    
+
     return f"<b>Последние логи сервиса:</b>\n<code>{logs}</code>"
 
 async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -690,14 +691,14 @@ async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
-    
+
     message = format_logs()
     await send_message(update, message)
 
 def log_message(category: str, message: str):
     """
     Унифицированная функция для логирования сообщений.
-    
+
     Args:
         category: Категория сообщения (ERROR, INFO, DEBUG)
         message: Текст сообщения
@@ -773,4 +774,4 @@ def main():
     app.run_polling()
 
 if __name__ == '__main__':
-    main() 
+    main()
