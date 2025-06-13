@@ -2,6 +2,7 @@ import pytest
 import telegram_bot
 import os
 import json
+import types
 from unittest.mock import patch, MagicMock, AsyncMock
 from telegram import Update, Message, Chat, User
 from telegram.ext import ContextTypes
@@ -225,7 +226,9 @@ def test_save_config():
     with patch('builtins.open', return_value=mock_file) as mock_open:
         telegram_bot.save_config(test_config)
         mock_open.assert_called_once()
-        mock_file.__enter__.return_value.write.assert_called_once()
+        # Проверяем, что write был вызван с правильным JSON
+        expected_json = json.dumps(test_config, indent=2)
+        mock_file.__enter__.return_value.write.assert_called_once_with(expected_json)
 
 def test_is_authorized():
     """Тест проверки авторизации"""
@@ -234,6 +237,7 @@ def test_is_authorized():
 
     # Тест с правильным chat_id
     update.effective_chat.id = 123456
+    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
     assert telegram_bot.is_authorized(update) is True
 
     # Тест с неправильным chat_id
@@ -258,6 +262,7 @@ async def test_setchat_command(mock_update, mock_context):
 async def test_check_codeword_correct(mock_update, mock_context):
     """Тест проверки правильного кодового слова"""
     mock_update.message.text = "test_codeword"
+    telegram_bot.CODEWORD = "test_codeword"
     result = await telegram_bot.check_codeword(mock_update, mock_context)
     assert result == telegram_bot.CONFIRM_CHANGE
     assert mock_context.user_data['new_chat_id'] == 123456
@@ -297,6 +302,7 @@ async def test_confirm_change_no(mock_update, mock_context):
 @pytest.mark.asyncio
 async def test_status_command(mock_update, mock_context):
     """Тест команды /status"""
+    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
     with patch('telegram_bot.load_config', return_value={
         "timezone": "Europe/Moscow",
         "schedule_enabled": True,
@@ -315,8 +321,8 @@ async def test_status_command(mock_update, mock_context):
 @pytest.mark.asyncio
 async def test_menu_command(mock_update, mock_context):
     """Тест команды /menu"""
+    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
     await telegram_bot.menu(mock_update, mock_context)
     mock_update.message.reply_text.assert_called_once()
-    assert "Выберите действие" in mock_update.message.reply_text.call_args[0][0]
-
+    assert "Доступные команды" in mock_update.message.reply_text.call_args[0][0]
 

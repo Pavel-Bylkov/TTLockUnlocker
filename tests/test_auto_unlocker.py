@@ -246,12 +246,13 @@ def test_debug_request():
 
         auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
 
-        assert mock_print.call_count == 4
+        assert mock_print.call_count == 5
         calls = [call.args[0] for call in mock_print.call_args_list]
         assert "[DEBUG] Test Request" in calls[0]
         assert "URL: http://test.com" in calls[1]
         assert "Параметры запроса: " in calls[2]
         assert "Статус ответа: 200" in calls[3]
+        assert "Тело ответа: " in calls[4]
 
 def test_debug_request_non_json_response():
     """Тест отладочного вывода HTTP-запроса с не-JSON ответом"""
@@ -263,6 +264,10 @@ def test_debug_request_non_json_response():
 
         auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
 
-        assert mock_print.call_count == 4
+        assert mock_print.call_count == 5
         calls = [call.args[0] for call in mock_print.call_args_list]
-        assert "Тело ответа (не JSON): Plain text response" in calls[3]
+        assert "[DEBUG] Test Request" in calls[0]
+        assert "URL: http://test.com" in calls[1]
+        assert "Параметры запроса: " in calls[2]
+        assert "Статус ответа: 200" in calls[3]
+        assert "Тело ответа (не JSON): Plain text response" in calls[4]
