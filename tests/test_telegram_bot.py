@@ -379,7 +379,7 @@ async def test_settimezone_flow(mock_send_message):
          patch('telegram_bot.send_message', mock_send), \
          patch('telegram_bot.load_config', return_value={}), \
          patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send), \
          patch('pytz.timezone') as mock_tz:
 
         # Вызываем функцию
@@ -409,7 +409,7 @@ async def test_setchat_flow(mock_send_message):
          patch('telegram_bot.send_message', mock_send), \
          patch('telegram_bot.CODEWORD', 'secretword'), \
          patch('builtins.open', mock_open(read_data='TELEGRAM_CHAT_ID=old_id\n')), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify'):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send):
 
         # Вызываем функцию проверки кодового слова
         result = await telegram_bot.check_codeword(update, context)
@@ -467,7 +467,7 @@ async def test_enable_schedule_command(mock_send_message):
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.is_authorized', return_value=True), \
          patch('telegram_bot.send_message', mock_send), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify'):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send):
         # Вызываем функцию
         await telegram_bot.enable_schedule(update, None)
 
@@ -491,7 +491,7 @@ async def test_disable_schedule_command(mock_send_message):
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.is_authorized', return_value=True), \
          patch('telegram_bot.send_message', mock_send), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify'):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send):
         # Вызываем функцию
         await telegram_bot.disable_schedule(update, None)
 
