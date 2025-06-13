@@ -505,7 +505,8 @@ async def test_logs_command(mock_update, mock_context):
     test_logs = [
         "2024-03-13 10:00:00 INFO: Test log message",
         "2024-03-13 10:01:00 INFO: Another log message"
-    ]
+    ] + [""] * 8  # Добавляем пустые строки, чтобы получить 10 строк всего
+
     with patch('os.path.exists', return_value=True), \
          patch('builtins.open', MagicMock()) as mock_file:
         mock_file.__enter__.return_value.readlines.return_value = test_logs
@@ -525,7 +526,8 @@ async def test_logs_command_with_days(mock_update, mock_context):
     test_logs = [
         "2024-03-13 10:00:00 INFO: Test log for monday",
         "2024-03-13 10:01:00 INFO: Test log for tuesday"
-    ]
+    ] + [""] * 8  # Добавляем пустые строки, чтобы получить 10 строк всего
+
     with patch('os.path.exists', return_value=True), \
          patch('builtins.open', MagicMock()) as mock_file:
         mock_file.__enter__.return_value.readlines.return_value = test_logs
