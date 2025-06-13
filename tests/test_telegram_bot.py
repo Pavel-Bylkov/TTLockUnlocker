@@ -519,8 +519,10 @@ async def test_logs_command(mock_update, mock_context):
         assert "<code>" in response_text
         assert "</code>" in response_text
         code_content = response_text[response_text.find("<code>") + 6:response_text.find("</code>")]
-        assert test_logs[0] in code_content
-        assert test_logs[1] in code_content
+        # Проверяем, что каждая строка лога присутствует в содержимом
+        for log in test_logs:
+            if log.strip():  # Проверяем только непустые строки
+                assert log.strip() in code_content
 
 @pytest.mark.asyncio
 async def test_logs_command_with_days(mock_update, mock_context):
@@ -544,8 +546,12 @@ async def test_logs_command_with_days(mock_update, mock_context):
         assert "<code>" in response_text
         assert "</code>" in response_text
         code_content = response_text[response_text.find("<code>") + 6:response_text.find("</code>")]
+        # Проверяем замену дней недели
         assert "Понедельник" in code_content
         assert "Вторник" in code_content
+        # Проверяем, что оригинальные английские названия заменены
+        assert "monday" not in code_content
+        assert "tuesday" not in code_content
 
 @pytest.mark.asyncio
 async def test_logs_command_file_not_found(mock_update, mock_context):
