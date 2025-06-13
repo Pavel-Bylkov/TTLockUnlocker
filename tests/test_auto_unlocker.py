@@ -10,12 +10,12 @@ import schedule
 def setup_env():
     # Сохраняем оригинальные значения
     original_values = {}
-    for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET',
+    for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET', 
                 'TTLOCK_USERNAME', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TTLOCK_LOCK_ID']:
         original_values[key] = os.environ.get(key)
         if key in os.environ:
             del os.environ[key]
-
+    
     # Устанавливаем тестовые значения
     os.environ['TTLOCK_PASSWORD'] = 'test_password'
     os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
@@ -23,9 +23,9 @@ def setup_env():
     os.environ['TTLOCK_USERNAME'] = 'test_username'
     os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
     os.environ['TELEGRAM_CHAT_ID'] = 'test_chat_id'
-
+    
     yield
-
+    
     # Восстанавливаем оригинальные значения
     for key, value in original_values.items():
         if value is not None:
@@ -164,7 +164,7 @@ def test_resolve_lock_id_from_env():
     with patch('ttlock_api.list_locks') as mock_list_locks:
         os.environ['TTLOCK_LOCK_ID'] = 'test_lock_id'
         token = 'test_token'
-
+        
         lock_id = auto_unlocker.resolve_lock_id(token)
         assert lock_id == 'test_lock_id'
         mock_list_locks.assert_not_called()
@@ -172,7 +172,7 @@ def test_resolve_lock_id_from_env():
 def test_resolve_lock_id_from_list():
     with patch('ttlock_api.list_locks') as mock_list_locks:
         mock_list_locks.return_value = [{'lockId': 'test_lock_id', 'lockName': 'Test Lock'}]
-
+        
         lock_id = auto_unlocker.resolve_lock_id('test_token')
         assert lock_id == 'test_lock_id'
         mock_list_locks.assert_called_once()
@@ -181,14 +181,14 @@ def test_job_success():
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve:
-
+        
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.return_value = {'errcode': 0, 'success': True}
-
+        
         auto_unlocker.LOCK_ID = None
         auto_unlocker.job()
-
+        
         mock_get_token.assert_called_once()
         mock_resolve.assert_called_once()
         mock_unlock.assert_called_once()
@@ -198,7 +198,7 @@ def test_job_with_retries():
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
          patch('ttlock_api.get_now') as mock_now:
-
+        
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.side_effect = [
@@ -207,13 +207,13 @@ def test_job_with_retries():
             {'errcode': -3037, 'success': False},  # Третья попытка - замок занят
             {'errcode': 0, 'success': True}        # Четвертая попытка - успех
         ]
-
+        
         # Устанавливаем текущее время 9:00
         mock_now.return_value = datetime.now().replace(hour=9, minute=0)
-
+        
         auto_unlocker.LOCK_ID = 'test_lock_id'
         auto_unlocker.job()
-
+        
         assert mock_unlock.call_count == 4
         # Проверяем, что последняя попытка была в 9:15
         assert mock_now.call_count > 0
@@ -223,17 +223,17 @@ def test_job_max_retries():
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
          patch('ttlock_api.get_now') as mock_now:
-
+        
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.return_value = {'errcode': -3037, 'success': False}
-
+        
         # Устанавливаем текущее время 20:45
         mock_now.return_value = datetime.now().replace(hour=20, minute=45)
-
+        
         auto_unlocker.LOCK_ID = 'test_lock_id'
         auto_unlocker.job()
-
+        
         # Проверяем, что не было попыток после 21:00
         assert mock_unlock.call_count <= 3
 
@@ -243,9 +243,9 @@ def test_debug_request():
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "ok"}
-
+        
         auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
-
+        
         assert mock_print.call_count == 5
         calls = [call.args[0] for call in mock_print.call_args_list]
         assert "[DEBUG] Test Request" in calls[0]
@@ -261,13 +261,13 @@ def test_debug_request_non_json_response():
         mock_response.status_code = 200
         mock_response.json.side_effect = Exception("Not JSON")
         mock_response.text = "Plain text response"
-
+        
         auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
-
+        
         assert mock_print.call_count == 5
         calls = [call.args[0] for call in mock_print.call_args_list]
         assert "[DEBUG] Test Request" in calls[0]
         assert "URL: http://test.com" in calls[1]
         assert "Параметры запроса: " in calls[2]
         assert "Статус ответа: 200" in calls[3]
-        assert "Тело ответа (не JSON): Plain text response" in calls[4]
+        assert "Тело ответа (не JSON): Plain text response" in calls[4] 

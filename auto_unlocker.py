@@ -188,7 +188,7 @@ def job():
     print(msg)
     logger.info(msg)
     send_telegram_message(f"🔔 <b>Запуск задачи открытия замка</b>\n{now_str}")
-
+    
     token = ttlock_api.get_token(logger)
     if not token:
         msg = "Не удалось получить токен, задача пропущена."
@@ -219,7 +219,7 @@ def job():
             time.sleep(RETRY_DELAY)
 
         result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
-
+        
         if result.get('success'):
             msg = f"✅ Замок успешно открыт (попытка {retry_count + 1})"
             print(msg)

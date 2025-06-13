@@ -7,7 +7,7 @@
     "wednesday": "09:01",
     "thursday": "09:01",
     "friday": "09:01",
-    "saturday": "09:02",
+    "saturday": "09:01",
     "sunday": "09:01"
   },
   "breaks": {
@@ -19,4 +19,4 @@
     "saturday": [],
     "sunday": []
   }
-}
+} 
