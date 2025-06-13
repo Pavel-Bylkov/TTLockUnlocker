@@ -583,9 +583,15 @@ async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Замена дней недели на русский
             days_en = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
             days_ru = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-            logs = "\n".join([line.strip() for line in lines])
-            for en, ru in zip(days_en, days_ru):
-                logs = logs.replace(en, ru)
+            # Обрабатываем каждую строку отдельно
+            processed_lines = []
+            for line in lines:
+                line = line.strip()
+                if line:  # Пропускаем пустые строки
+                    for en, ru in zip(days_en, days_ru):
+                        line = line.replace(en, ru)
+                    processed_lines.append(line)
+            logs = "\n".join(processed_lines)
         else:
             logs = "Лог-файл не найден."
     except Exception as e:
