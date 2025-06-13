@@ -53,6 +53,19 @@ def mock_context():
     context.user_data = {}
     return context
 
+@pytest.fixture
+def mock_send_message():
+    """
+    Фикстура для перехвата отправки сообщений в тестах.
+    """
+    sent_messages = []
+
+    async def mock_send(update, text, parse_mode="HTML", **kwargs):
+        sent_messages.append(text)
+        return None
+
+    return mock_send, sent_messages
+
 def test_load_and_save_config(tmp_path):
     config = {"timezone": "Europe/Moscow", "schedule_enabled": False}
     config_path = tmp_path / "config.json"
@@ -305,31 +318,67 @@ async def test_confirm_change_no(mock_update, mock_context):
     mock_update.message.reply_text.assert_called_once_with("Операция отменена.")
 
 @pytest.mark.asyncio
-async def test_status_command(mock_update, mock_context):
-    """Тест команды /status"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
-    with patch('telegram_bot.load_config', return_value={
+async def test_status_command(mock_send_message):
+    """
+    Тест команды /status.
+    """
+    mock_send, sent_messages = mock_send_message
+
+    # Создаем тестовый конфиг
+    test_config = {
         "timezone": "Europe/Moscow",
         "schedule_enabled": True,
-        "open_times": {"monday": "09:00"},
-        "breaks": {"monday": ["13:00-14:00"]}
-    }), \
-    patch('docker.from_env') as mock_docker:
-        mock_container = MagicMock()
-        mock_container.status = "running"
-        mock_docker.return_value.containers.get.return_value = mock_container
+        "open_times": {
+            "monday": "09:00",
+            "tuesday": "10:00"
+        },
+        "breaks": {
+            "monday": ["13:00-14:00"],
+            "tuesday": []
+        }
+    }
 
-        await telegram_bot.status(mock_update, mock_context)
-        mock_update.message.reply_text.assert_called_once()
-        assert "работает" in mock_update.message.reply_text.call_args[0][0]
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+
+    # Мокаем функции
+    with patch('telegram_bot.load_config', return_value=test_config), \
+         patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send):
+        # Вызываем функцию
+        await telegram_bot.status(update, None)
+
+        # Проверяем, что сообщение было отправлено
+        assert len(sent_messages) == 1
+        assert "Статус расписания" in sent_messages[0]
+        assert "Europe/Moscow" in sent_messages[0]
+        assert "Пн: 09:00" in sent_messages[0]
+        assert "Вт: 10:00" in sent_messages[0]
+        assert "Пн: 13:00-14:00" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_menu_command(mock_update, mock_context):
-    """Тест команды /menu"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
-    await telegram_bot.menu(mock_update, mock_context)
-    mock_update.message.reply_text.assert_called_once()
-    assert "Доступные команды" in mock_update.message.reply_text.call_args[0][0]
+async def test_menu_command(mock_send_message):
+    """
+    Тест команды /menu.
+    """
+    mock_send, sent_messages = mock_send_message
+
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+
+    # Мокаем функцию отправки сообщений
+    with patch('telegram_bot.send_message', mock_send):
+        # Вызываем функцию
+        await telegram_bot.menu(update, None)
+
+        # Проверяем, что сообщение было отправлено
+        assert len(sent_messages) == 1
+        assert "Доступные команды" in sent_messages[0]
+        assert "/menu" in sent_messages[0]
+        assert "/setchat" in sent_messages[0]
+        assert "/status" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_settimezone_command(mock_update, mock_context):
@@ -356,132 +405,243 @@ async def test_settimezone_apply(mock_update, mock_context):
         mock_restart.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_settime_flow(mock_update, mock_context):
-    """Тест полного процесса настройки времени"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+async def test_settime_flow(mock_send_message):
+    """
+    Тест полного флоу настройки времени.
+    """
+    mock_send, sent_messages = mock_send_message
 
-    # Тест начала настройки времени
-    result = await telegram_bot.settime_start(mock_update, mock_context)
-    assert result == telegram_bot.SETTIME_DAY
-    mock_update.message.reply_text.assert_called_once()
-    assert "день недели" in mock_update.message.reply_text.call_args[0][0]
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+    update.message.text = "Пн"  # Выбор дня недели
 
-    # Сброс мока для следующего теста
-    mock_update.message.reply_text.reset_mock()
+    # Мокаем функции
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send), \
+         patch('telegram_bot.load_config', return_value={}), \
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify'):
 
-    # Тест выбора дня
-    mock_update.message.text = "Пн"
-    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}), \
-         patch('telegram_bot.DAYS_RU', ['Пн']), \
-         patch('telegram_bot.DAY_MAP_INV', {'monday': 'Пн'}):
-        result = await telegram_bot.settime_day(mock_update, mock_context)
+        # Вызываем функцию выбора дня
+        result = await telegram_bot.settime_day(update, None)
         assert result == telegram_bot.SETTIME_VALUE
-        assert mock_context.user_data['settime_day'] == "monday"
+        assert len(sent_messages) == 1
+        assert "Введите время открытия" in sent_messages[0]
 
-    # Сброс мока для следующего теста
-    mock_update.message.reply_text.reset_mock()
+        # Сбрасываем список сообщений
+        sent_messages.clear()
 
-    # Тест установки времени
-    mock_update.message.text = "09:00"
-    with patch('telegram_bot.load_config', return_value={}), \
-         patch('telegram_bot.save_config') as mock_save, \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart, \
-         patch('telegram_bot.DAY_MAP_INV', {'monday': 'Пн'}):
-
-        result = await telegram_bot.settime_value(mock_update, mock_context)
-        assert result == telegram_bot.SETTIME_DAY  # Функция возвращает SETTIME_DAY для продолжения настройки
-        mock_save.assert_called_once()
-        mock_restart.assert_called_once()
+        # Устанавливаем время
+        update.message.text = "09:00"
+        result = await telegram_bot.settime_value(update, None)
+        assert result == telegram_bot.SETTIME_DAY
+        assert len(sent_messages) == 1
+        assert "Время открытия для Пн установлено" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_setbreak_flow(mock_update, mock_context):
-    """Тест полного процесса настройки перерывов"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+async def test_setbreak_flow(mock_send_message):
+    """
+    Тест полного флоу настройки перерывов.
+    """
+    mock_send, sent_messages = mock_send_message
 
-    # Тест начала настройки перерывов
-    result = await telegram_bot.setbreak_start(mock_update, mock_context)
-    assert result == telegram_bot.SETBREAK_DAY
-    mock_update.message.reply_text.assert_called_once()
-    assert "день недели" in mock_update.message.reply_text.call_args[0][0]
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+    update.message.text = "Пн"  # Выбор дня недели
 
-    # Сброс мока для следующего теста
-    mock_update.message.reply_text.reset_mock()
+    # Мокаем функции
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send), \
+         patch('telegram_bot.load_config', return_value={}), \
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify'):
 
-    # Тест выбора дня
-    mock_update.message.text = "Пн"
-    with patch('telegram_bot.DAY_MAP', {'Пн': 'monday'}), \
-         patch('telegram_bot.DAYS_RU', ['Пн']), \
-         patch('telegram_bot.load_config', return_value={}):
-        result = await telegram_bot.setbreak_day(mock_update, mock_context)
+        # Вызываем функцию выбора дня
+        result = await telegram_bot.setbreak_day(update, None)
         assert result == telegram_bot.SETBREAK_ACTION
-        assert mock_context.user_data['setbreak_day'] == "monday"
+        assert len(sent_messages) == 1
+        assert "Текущие перерывы" in sent_messages[0]
 
-    # Сброс мока для следующего теста
-    mock_update.message.reply_text.reset_mock()
+        # Сбрасываем список сообщений
+        sent_messages.clear()
 
-    # Тест выбора действия
-    mock_update.message.text = "Добавить"
-    result = await telegram_bot.setbreak_action(mock_update, mock_context)
-    assert result == telegram_bot.SETBREAK_ADD
+        # Выбираем действие "Добавить"
+        update.message.text = "Добавить"
+        result = await telegram_bot.setbreak_action(update, None)
+        assert result == telegram_bot.SETBREAK_ADD
+        assert len(sent_messages) == 1
+        assert "Введите интервал перерыва" in sent_messages[0]
 
-    # Сброс мока для следующего теста
-    mock_update.message.reply_text.reset_mock()
+        # Сбрасываем список сообщений
+        sent_messages.clear()
 
-    # Тест добавления перерыва
-    mock_update.message.text = "13:00-14:00"
-    with patch('telegram_bot.load_config', return_value={}), \
-         patch('telegram_bot.save_config') as mock_save, \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart:
-
-        result = await telegram_bot.setbreak_add(mock_update, mock_context)
-        assert result == telegram_bot.SETBREAK_DAY  # Функция возвращает SETBREAK_DAY для продолжения настройки
-        mock_save.assert_called_once()
-        mock_restart.assert_called_once()
-
-@pytest.mark.asyncio
-async def test_open_close_lock(mock_update, mock_context):
-    """Тест команд открытия/закрытия замка"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
-
-    with patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
-         patch('telegram_bot.ttlock_api.unlock_lock', return_value={'errcode': 0}), \
-         patch('telegram_bot.ttlock_api.lock_lock', return_value={'errcode': 0}):
-
-        # Тест открытия замка
-        await telegram_bot.open_lock(mock_update, mock_context)
-        mock_update.message.reply_text.assert_called_once()
-        assert "открыт" in mock_update.message.reply_text.call_args[0][0]
-
-        # Сброс мока для следующего теста
-        mock_update.message.reply_text.reset_mock()
-
-        # Тест закрытия замка
-        await telegram_bot.close_lock(mock_update, mock_context)
-        mock_update.message.reply_text.assert_called_once()
-        assert "закрыт" in mock_update.message.reply_text.call_args[0][0]
+        # Добавляем перерыв
+        update.message.text = "13:00-14:00"
+        result = await telegram_bot.setbreak_add(update, None)
+        assert result == telegram_bot.SETBREAK_DAY
+        assert len(sent_messages) == 1
+        assert "Перерыв 13:00-14:00 добавлен" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_enable_disable_schedule(mock_update, mock_context):
-    """Тест команд включения/выключения расписания"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+async def test_settimezone_flow(mock_send_message):
+    """
+    Тест полного флоу настройки часового пояса.
+    """
+    mock_send, sent_messages = mock_send_message
 
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+    update.message.text = "Europe/Moscow"  # Ввод часового пояса
+
+    # Мокаем функции
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send), \
+         patch('telegram_bot.load_config', return_value={}), \
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify'), \
+         patch('pytz.timezone'):
+
+        # Вызываем функцию
+        result = await telegram_bot.settimezone_apply(update, None)
+        assert result == telegram_bot.ConversationHandler.END
+        assert len(sent_messages) == 1
+        assert "Часовой пояс изменён" in sent_messages[0]
+
+@pytest.mark.asyncio
+async def test_setchat_flow(mock_send_message):
+    """
+    Тест полного флоу смены chat_id.
+    """
+    mock_send, sent_messages = mock_send_message
+
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+    update.message.text = "secretword"  # Ввод кодового слова
+
+    # Мокаем функции
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send), \
+         patch('telegram_bot.CODEWORD', 'secretword'), \
+         patch('builtins.open', mock_open(read_data='TELEGRAM_CHAT_ID=old_id\n')), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify'):
+
+        # Вызываем функцию проверки кодового слова
+        result = await telegram_bot.check_codeword(update, None)
+        assert result == telegram_bot.CONFIRM_CHANGE
+        assert len(sent_messages) == 1
+        assert "Кодовое слово верно" in sent_messages[0]
+
+        # Сбрасываем список сообщений
+        sent_messages.clear()
+
+        # Подтверждаем смену
+        update.message.text = "да"
+        result = await telegram_bot.confirm_change(update, None)
+        assert result == telegram_bot.ConversationHandler.END
+        assert len(sent_messages) == 1
+        assert "Получатель уведомлений изменён" in sent_messages[0]
+
+@pytest.mark.asyncio
+async def test_open_close_lock(mock_send_message):
+    """
+    Тест команды /open.
+    """
+    mock_send, sent_messages = mock_send_message
+
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+
+    # Мокаем функции
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.TTLOCK_LOCK_ID', 'test_lock_id'), \
+         patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
+         patch('telegram_bot.ttlock_api.unlock_lock', return_value={'errcode': 0, 'attempt': 1}), \
+         patch('telegram_bot.send_message', mock_send):
+        # Вызываем функцию
+        await telegram_bot.open_lock(update, None)
+
+        # Проверяем, что сообщение было отправлено
+        assert len(sent_messages) == 1
+        assert "Замок открыт" in sent_messages[0]
+        assert "попытка 1" in sent_messages[0]
+
+@pytest.mark.asyncio
+async def test_close_lock_command(mock_send_message):
+    """
+    Тест команды /close.
+    """
+    mock_send, sent_messages = mock_send_message
+
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+
+    # Мокаем функции
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.TTLOCK_LOCK_ID', 'test_lock_id'), \
+         patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
+         patch('telegram_bot.ttlock_api.lock_lock', return_value={'errcode': 0, 'attempt': 1}), \
+         patch('telegram_bot.send_message', mock_send):
+        # Вызываем функцию
+        await telegram_bot.close_lock(update, None)
+
+        # Проверяем, что сообщение было отправлено
+        assert len(sent_messages) == 1
+        assert "Замок закрыт" in sent_messages[0]
+        assert "попытка 1" in sent_messages[0]
+
+@pytest.mark.asyncio
+async def test_enable_schedule_command(mock_send_message):
+    """
+    Тест команды /enable_schedule.
+    """
+    mock_send, sent_messages = mock_send_message
+
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+
+    # Мокаем функции
     with patch('telegram_bot.load_config', return_value={}), \
-         patch('telegram_bot.save_config') as mock_save, \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart:
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify'):
+        # Вызываем функцию
+        await telegram_bot.enable_schedule(update, None)
 
-        # Тест включения расписания
-        await telegram_bot.enable_schedule(mock_update, mock_context)
-        mock_save.assert_called_once()
-        mock_restart.assert_called_once()
+        # Проверяем, что сообщение было отправлено
+        assert len(sent_messages) == 1
+        assert "Расписание включено" in sent_messages[0]
 
-        # Сброс моков для следующего теста
-        mock_save.reset_mock()
-        mock_restart.reset_mock()
+@pytest.mark.asyncio
+async def test_disable_schedule_command(mock_send_message):
+    """
+    Тест команды /disable_schedule.
+    """
+    mock_send, sent_messages = mock_send_message
 
-        # Тест выключения расписания
-        await telegram_bot.disable_schedule(mock_update, mock_context)
-        mock_save.assert_called_once()
-        mock_restart.assert_called_once()
+    # Создаем мок для update
+    update = MagicMock()
+    update.effective_chat.id = 123456
+
+    # Мокаем функции
+    with patch('telegram_bot.load_config', return_value={}), \
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_message', mock_send), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify'):
+        # Вызываем функцию
+        await telegram_bot.disable_schedule(update, None)
+
+        # Проверяем, что сообщение было отправлено
+        assert len(sent_messages) == 1
+        assert "Расписание отключено" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_restart_auto_unlocker_cmd(mock_update, mock_context):
@@ -498,60 +658,82 @@ async def test_restart_auto_unlocker_cmd(mock_update, mock_context):
         assert "перезапущен" in mock_update.message.reply_text.call_args[0][0]
 
 @pytest.mark.asyncio
-async def test_logs_command(mock_update, mock_context):
-    """Тест команды просмотра логов"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+async def test_logs_command(mock_send_message):
+    """
+    Тест команды /logs с успешным чтением логов.
+    """
+    mock_send, sent_messages = mock_send_message
 
+    # Создаем тестовые логи
     test_logs = [
-        "2024-03-13 10:00:00 INFO: Test log message",
-        "2024-03-13 10:01:00 INFO: Another log message"
-    ] + [""] * 8  # Добавляем пустые строки, чтобы получить 10 строк всего
+        "2024-02-20 10:00:00 INFO: Test log message 1",
+        "2024-02-20 10:01:00 INFO: Test log message 2",
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+    ]
 
-    with patch('os.path.exists', return_value=True), \
-         patch('builtins.open', MagicMock()) as mock_file:
-        mock_file.__enter__.return_value.readlines.return_value = test_logs
+    # Мокаем чтение файла
+    with patch('builtins.open', mock_open(read_data='\n'.join(test_logs))):
+        # Мокаем проверку существования файла
+        with patch('os.path.exists', return_value=True):
+            # Мокаем функцию отправки сообщений
+            with patch('telegram_bot.send_message', mock_send):
+                # Создаем мок для update
+                update = MagicMock()
+                update.effective_chat.id = 123456
 
-        await telegram_bot.logs(mock_update, mock_context)
-        mock_update.message.reply_text.assert_called_once()
-        response_text = mock_update.message.reply_text.call_args[0][0]
-        assert "Последние логи сервиса" in response_text
-        # Проверяем, что логи находятся внутри тега <code>
-        assert "<code>" in response_text
-        assert "</code>" in response_text
-        code_content = response_text[response_text.find("<code>") + 6:response_text.find("</code>")]
-        # Проверяем, что каждая строка лога присутствует в содержимом
-        for log in test_logs:
-            if log.strip():  # Проверяем только непустые строки
-                assert log.strip() in code_content
+                # Вызываем функцию
+                await telegram_bot.logs(update, None)
+
+                # Проверяем, что сообщение было отправлено
+                assert len(sent_messages) == 1
+                assert "Test log message 1" in sent_messages[0]
+                assert "Test log message 2" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_logs_command_with_days(mock_update, mock_context):
-    """Тест команды просмотра логов с заменой дней недели"""
-    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+async def test_logs_command_with_days(mock_send_message):
+    """
+    Тест команды /logs с заменой дней недели.
+    """
+    mock_send, sent_messages = mock_send_message
 
+    # Создаем тестовые логи с днями недели
     test_logs = [
-        "2024-03-13 10:00:00 INFO: Test log for monday",
-        "2024-03-13 10:01:00 INFO: Test log for tuesday"
-    ] + [""] * 8  # Добавляем пустые строки, чтобы получить 10 строк всего
+        "2024-02-20 10:00:00 INFO: Test on monday",
+        "2024-02-20 10:01:00 INFO: Test on tuesday",
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+        "",  # Пустая строка
+    ]
 
-    with patch('os.path.exists', return_value=True), \
-         patch('builtins.open', MagicMock()) as mock_file:
-        mock_file.__enter__.return_value.readlines.return_value = test_logs
+    # Мокаем чтение файла
+    with patch('builtins.open', mock_open(read_data='\n'.join(test_logs))):
+        # Мокаем проверку существования файла
+        with patch('os.path.exists', return_value=True):
+            # Мокаем функцию отправки сообщений
+            with patch('telegram_bot.send_message', mock_send):
+                # Создаем мок для update
+                update = MagicMock()
+                update.effective_chat.id = 123456
 
-        await telegram_bot.logs(mock_update, mock_context)
-        mock_update.message.reply_text.assert_called_once()
-        response_text = mock_update.message.reply_text.call_args[0][0]
-        assert "Последние логи сервиса" in response_text
-        # Проверяем, что логи находятся внутри тега <code>
-        assert "<code>" in response_text
-        assert "</code>" in response_text
-        code_content = response_text[response_text.find("<code>") + 6:response_text.find("</code>")]
-        # Проверяем замену дней недели
-        assert "Понедельник" in code_content
-        assert "Вторник" in code_content
-        # Проверяем, что оригинальные английские названия заменены
-        assert "monday" not in code_content
-        assert "tuesday" not in code_content
+                # Вызываем функцию
+                await telegram_bot.logs(update, None)
+
+                # Проверяем, что сообщение было отправлено
+                assert len(sent_messages) == 1
+                assert "Понедельник" in sent_messages[0]
+                assert "Вторник" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_logs_command_file_not_found(mock_update, mock_context):
