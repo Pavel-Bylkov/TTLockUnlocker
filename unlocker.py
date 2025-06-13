@@ -206,21 +206,17 @@ def unlock_lock(token, lock_id):
     return False
 
 
-# Main execution
-token = ttlock_api.get_token()
+if __name__ == "__main__":
+    # Main execution
+    token = ttlock_api.get_token()
 
-if token:
-    locks = ttlock_api.list_locks(token)
-    lock_list = locks.get("list", []) if locks else []
-    if lock_list:
-        first_lock = lock_list[0]
-        lock_id = first_lock.get('lockId')
-        # print(f"\nИспользуем lock_id: {lock_id} для дальнейших операций")
-        # print("\nПробуем закрыть замок...")
-        # lock_lock(token, lock_id)
-        # get_lock_status(token, lock_id)
-        print("\nПробуем открыть замок...")
-        ttlock_api.unlock_lock(token, lock_id)
-        # get_lock_status(token, lock_id)
-    else:
-        print("Замки не найдены. Проверьте права доступа.")
+    if token:
+        locks = ttlock_api.list_locks(token)
+        lock_list = locks.get("list", []) if locks else []
+        if lock_list:
+            first_lock = lock_list[0]
+            lock_id = first_lock.get('lockId')
+            print("\nПробуем открыть замок...")
+            ttlock_api.unlock_lock(token, lock_id)
+        else:
+            print("Замки не найдены. Проверьте права доступа.")
