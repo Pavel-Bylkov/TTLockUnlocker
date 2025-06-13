@@ -11,6 +11,7 @@ def setup_env():
     os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
     os.environ['TTLOCK_USERNAME'] = 'test_username'
     os.environ['TTLOCK_LOCK_ID'] = 'test_lock_id'
+    unlocker.init()  # Инициализируем модуль после установки переменных окружения
     yield
     for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET', 'TTLOCK_USERNAME', 'TTLOCK_LOCK_ID']:
         os.environ.pop(key, None)

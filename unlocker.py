@@ -12,13 +12,14 @@ import os
 from dotenv import load_dotenv
 import ttlock_api
 
-# import schedule
 
 # Disable SSL verification warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
+ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
 # Загрузка переменных окружения
-load_dotenv()
+load_dotenv(ENV_PATH)
 
 # TTLock API параметры из .env
 client_id = os.getenv("TTLOCK_CLIENT_ID")
@@ -29,6 +30,11 @@ lock_id = os.getenv("TTLOCK_LOCK_ID")
 
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
+
+def init():
+    """Инициализация модуля, проверка переменных окружения"""
+    if not all([client_id, client_secret, username, password]):
+        raise RuntimeError("Не заданы все переменные окружения TTLOCK_CLIENT_ID, TTLOCK_CLIENT_SECRET, TTLOCK_USERNAME, TTLOCK_PASSWORD. Проверьте .env файл!")
 
 
 def debug_request(name, url, data, response):
