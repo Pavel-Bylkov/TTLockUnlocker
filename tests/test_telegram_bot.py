@@ -486,7 +486,8 @@ async def test_enable_schedule_command(mock_send_message, mock_restart_and_notif
 
         # Проверяем, что сообщение было отправлено
         assert len(sent_messages) == 1
-        assert "Расписание включено" in sent_messages[0]
+        assert "Расписание <b>включено</b>" in sent_messages[0]
+        assert "Auto_unlocker перезапущен" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_disable_schedule_command(mock_send_message, mock_restart_and_notify):
@@ -510,7 +511,8 @@ async def test_disable_schedule_command(mock_send_message, mock_restart_and_noti
 
         # Проверяем, что сообщение было отправлено
         assert len(sent_messages) == 1
-        assert "Расписание отключено" in sent_messages[0]
+        assert "Расписание <b>отключено</b>" in sent_messages[0]
+        assert "Auto_unlocker перезапущен" in sent_messages[0]
 
 @pytest.mark.asyncio
 async def test_logs_command(mock_send_message):
