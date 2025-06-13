@@ -66,6 +66,17 @@ def mock_send_message():
 
     return mock_send, sent_messages
 
+@pytest.fixture
+def mock_restart_and_notify():
+    """
+    Фикстура для мока функции restart_auto_unlocker_and_notify.
+    """
+    async def mock_restart(update, logger, message_success, message_error):
+        await send_message(update, message_success)
+        return None
+
+    return mock_restart
+
 def test_load_and_save_config(tmp_path):
     config = {"timezone": "Europe/Moscow", "schedule_enabled": False}
     config_path = tmp_path / "config.json"
@@ -363,7 +374,7 @@ async def test_setbreak_flow(mock_send_message):
         assert "Пожалуйста, выберите день из списка" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_settimezone_flow(mock_send_message):
+async def test_settimezone_flow(mock_send_message, mock_restart_and_notify):
     """
     Тест полного флоу настройки часового пояса.
     """
@@ -379,7 +390,7 @@ async def test_settimezone_flow(mock_send_message):
          patch('telegram_bot.send_message', mock_send), \
          patch('telegram_bot.load_config', return_value={}), \
          patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify), \
          patch('pytz.timezone') as mock_tz:
 
         # Вызываем функцию
@@ -389,7 +400,7 @@ async def test_settimezone_flow(mock_send_message):
         assert "Часовой пояс изменён" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_setchat_flow(mock_send_message):
+async def test_setchat_flow(mock_send_message, mock_restart_and_notify):
     """
     Тест полного флоу смены chat_id.
     """
@@ -409,7 +420,7 @@ async def test_setchat_flow(mock_send_message):
          patch('telegram_bot.send_message', mock_send), \
          patch('telegram_bot.CODEWORD', 'secretword'), \
          patch('builtins.open', mock_open(read_data='TELEGRAM_CHAT_ID=old_id\n')), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
 
         # Вызываем функцию проверки кодового слова
         result = await telegram_bot.check_codeword(update, context)
@@ -452,7 +463,7 @@ async def test_close_lock_command(mock_send_message):
         assert "Замок <b>закрыт</b>" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_enable_schedule_command(mock_send_message):
+async def test_enable_schedule_command(mock_send_message, mock_restart_and_notify):
     """
     Тест команды /enable_schedule.
     """
@@ -467,7 +478,7 @@ async def test_enable_schedule_command(mock_send_message):
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.is_authorized', return_value=True), \
          patch('telegram_bot.send_message', mock_send), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         # Вызываем функцию
         await telegram_bot.enable_schedule(update, None)
 
@@ -476,7 +487,7 @@ async def test_enable_schedule_command(mock_send_message):
         assert "Расписание включено" in sent_messages[0]
 
 @pytest.mark.asyncio
-async def test_disable_schedule_command(mock_send_message):
+async def test_disable_schedule_command(mock_send_message, mock_restart_and_notify):
     """
     Тест команды /disable_schedule.
     """
@@ -491,7 +502,7 @@ async def test_disable_schedule_command(mock_send_message):
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.is_authorized', return_value=True), \
          patch('telegram_bot.send_message', mock_send), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_send):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         # Вызываем функцию
         await telegram_bot.disable_schedule(update, None)
 
