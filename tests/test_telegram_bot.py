@@ -502,16 +502,40 @@ async def test_logs_command(mock_update, mock_context):
     """Тест команды просмотра логов"""
     telegram_bot.AUTHORIZED_CHAT_ID = '123456'
 
-    test_log = "Test log message"
+    test_logs = [
+        "2024-03-13 10:00:00 INFO: Test log message",
+        "2024-03-13 10:01:00 INFO: Another log message"
+    ]
     with patch('os.path.exists', return_value=True), \
          patch('builtins.open', MagicMock()) as mock_file:
-        mock_file.__enter__.return_value.readlines.return_value = [test_log]
+        mock_file.__enter__.return_value.readlines.return_value = test_logs
 
         await telegram_bot.logs(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         response_text = mock_update.message.reply_text.call_args[0][0]
         assert "Последние логи сервиса" in response_text
-        assert test_log in response_text
+        assert test_logs[0] in response_text
+        assert test_logs[1] in response_text
+
+@pytest.mark.asyncio
+async def test_logs_command_with_days(mock_update, mock_context):
+    """Тест команды просмотра логов с заменой дней недели"""
+    telegram_bot.AUTHORIZED_CHAT_ID = '123456'
+
+    test_logs = [
+        "2024-03-13 10:00:00 INFO: Test log for monday",
+        "2024-03-13 10:01:00 INFO: Test log for tuesday"
+    ]
+    with patch('os.path.exists', return_value=True), \
+         patch('builtins.open', MagicMock()) as mock_file:
+        mock_file.__enter__.return_value.readlines.return_value = test_logs
+
+        await telegram_bot.logs(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        response_text = mock_update.message.reply_text.call_args[0][0]
+        assert "Последние логи сервиса" in response_text
+        assert "Понедельник" in response_text
+        assert "Вторник" in response_text
 
 @pytest.mark.asyncio
 async def test_logs_command_file_not_found(mock_update, mock_context):
