@@ -7,6 +7,7 @@ import pytz
 from datetime import datetime
 import json
 import logging
+from typing import Optional, Dict, List, Union, Callable
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -18,12 +19,15 @@ DEBUG = os.getenv("DEBUG", "0").lower() in ("1", "true", "yes")
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
 
-def get_token(logger=None):
+def get_token(logger: Optional[logging.Logger] = None) -> Optional[str]:
     """
     Получает токен доступа для работы с TTLock API.
     
-    :param logger: Логгер для записи информации (опционально).
-    :return: access_token или None в случае ошибки.
+    Args:
+        logger: Логгер для записи информации (опционально)
+    
+    Returns:
+        str: access_token или None в случае ошибки
     """
     url = "https://euapi.ttlock.com/oauth2/token"
     password_md5 = hashlib.md5(TTLOCK_PASSWORD.encode()).hexdigest()
@@ -33,23 +37,35 @@ def get_token(logger=None):
         "clientId": TTLOCK_CLIENT_ID,
         "clientSecret": TTLOCK_CLIENT_SECRET
     }
-    resp = requests.post(url, data=data, timeout=10, verify=False)
-    if logger:
-        logger.info(f"TTLock get_token response: {resp.text}")
-    if DEBUG:
-        print(f"[DEBUG] get_token: {resp.text}")
-    return resp.json().get("access_token")
+    try:
+        resp = requests.post(url, data=data, timeout=10, verify=False)
+        if logger:
+            logger.info(f"TTLock get_token response: {resp.text}")
+        if DEBUG:
+            print(f"[DEBUG] get_token: {resp.text}")
+        return resp.json().get("access_token")
+    except Exception as e:
+        msg = f"Ошибка получения токена: {str(e)}"
+        if logger:
+            logger.error(msg)
+        if DEBUG:
+            print(msg)
+        return None
 
 
-def unlock_lock(token, lock_id, logger=None, send_telegram=None):
+def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None, 
+                send_telegram: Optional[Callable] = None) -> Dict[str, Union[int, str, bool]]:
     """
     Открывает замок с указанным идентификатором.
     
-    :param token: access_token для доступа к API.
-    :param lock_id: Идентификатор замка, который нужно открыть.
-    :param logger: Логгер для записи информации (опционально).
-    :param send_telegram: Функция для отправки сообщений в Telegram (опционально).
-    :return: dict с результатом операции (errcode, errmsg, success, attempt).
+    Args:
+        token: access_token для доступа к API
+        lock_id: Идентификатор замка, который нужно открыть
+        logger: Логгер для записи информации (опционально)
+        send_telegram: Функция для отправки сообщений в Telegram (опционально)
+    
+    Returns:
+        dict: Результат операции (errcode, errmsg, success, attempt)
     """
     url = "https://euapi.ttlock.com/v3/lock/unlock"
     data = {
@@ -59,6 +75,7 @@ def unlock_lock(token, lock_id, logger=None, send_telegram=None):
         "date": int(time.time() * 1000)
     }
     intervals = [0, 30, 60]
+    
     for attempt in range(3):
         if attempt > 0:
             delay = intervals[attempt]
@@ -68,12 +85,14 @@ def unlock_lock(token, lock_id, logger=None, send_telegram=None):
             if DEBUG:
                 print(msg)
             time.sleep(delay)
+            
         try:
             response = requests.post(url, data=data, verify=False)
             if DEBUG:
                 print(f"[DEBUG] unlock_lock (попытка {attempt+1}): {response.text}")
             if logger:
                 logger.info(f"Ответ TTLock (unlock, попытка {attempt+1}): {response.text}")
+                
             response_data = response.json()
             if "errcode" in response_data and response_data["errcode"] == 0:
                 msg = f"✅ Замок {lock_id} открыт успешно (попытка {attempt+1})"
@@ -100,18 +119,23 @@ def unlock_lock(token, lock_id, logger=None, send_telegram=None):
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
+                
     return {"errcode": -1, "errmsg": "Не удалось открыть замок после 3 попыток", "success": False, "attempt": 3}
 
 
-def lock_lock(token, lock_id, logger=None, send_telegram=None):
+def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
+             send_telegram: Optional[Callable] = None) -> Dict[str, Union[int, str, bool]]:
     """
     Закрывает замок с указанным идентификатором.
     
-    :param token: access_token для доступа к API.
-    :param lock_id: Идентификатор замка, который нужно закрыть.
-    :param logger: Логгер для записи информации (опционально).
-    :param send_telegram: Функция для отправки сообщений в Telegram (опционально).
-    :return: dict с результатом операции (errcode, errmsg, success, attempt).
+    Args:
+        token: access_token для доступа к API
+        lock_id: Идентификатор замка, который нужно закрыть
+        logger: Логгер для записи информации (опционально)
+        send_telegram: Функция для отправки сообщений в Telegram (опционально)
+    
+    Returns:
+        dict: Результат операции (errcode, errmsg, success, attempt)
     """
     url = "https://euapi.ttlock.com/v3/lock/lock"
     data = {
@@ -121,6 +145,7 @@ def lock_lock(token, lock_id, logger=None, send_telegram=None):
         "date": int(time.time() * 1000)
     }
     intervals = [0, 30, 60]
+    
     for attempt in range(3):
         if attempt > 0:
             delay = intervals[attempt]
@@ -130,12 +155,14 @@ def lock_lock(token, lock_id, logger=None, send_telegram=None):
             if DEBUG:
                 print(msg)
             time.sleep(delay)
+            
         try:
             response = requests.post(url, data=data, verify=False)
             if DEBUG:
                 print(f"[DEBUG] lock_lock (попытка {attempt+1}): {response.text}")
             if logger:
                 logger.info(f"Ответ TTLock (lock, попытка {attempt+1}): {response.text}")
+                
             response_data = response.json()
             if "errcode" in response_data and response_data["errcode"] == 0:
                 msg = f"✅ Замок {lock_id} закрыт успешно (попытка {attempt+1})"
@@ -162,16 +189,20 @@ def lock_lock(token, lock_id, logger=None, send_telegram=None):
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
+                
     return {"errcode": -1, "errmsg": "Не удалось закрыть замок после 3 попыток", "success": False, "attempt": 3}
 
 
-def list_locks(token, logger=None):
+def list_locks(token: str, logger: Optional[logging.Logger] = None) -> List[Dict]:
     """
     Запрашивает список замков, доступных для данного access_token (только для владельца).
     
-    :param token: access_token.
-    :param logger: Логгер для записи информации (опционально).
-    :return: Список замков (list) или пустой список.
+    Args:
+        token: access_token
+        logger: Логгер для записи информации (опционально)
+    
+    Returns:
+        list: Список замков или пустой список в случае ошибки
     """
     url = "https://euapi.ttlock.com/v3/lock/list"
     data = {
@@ -233,31 +264,66 @@ def get_lock_status(token, lock_id, logger=None):
         return None
 
 
-def get_timezone(config_path=CONFIG_PATH):
+def get_timezone(config_path: str = CONFIG_PATH) -> str:
+    """
+    Получает часовой пояс из конфигурации.
+    
+    Args:
+        config_path: Путь к файлу конфигурации
+    
+    Returns:
+        str: Название часового пояса
+    """
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, 'r') as f:
             config = json.load(f)
-        tz = pytz.timezone(config.get("timezone", "Asia/Novosibirsk"))
+        return config.get('timezone', 'Europe/Moscow')
     except Exception:
-        tz = pytz.timezone("Asia/Novosibirsk")
-    return tz
+        return 'Europe/Moscow'
 
 
-def get_now(config_path=CONFIG_PATH):
-    tz = get_timezone(config_path)
-    return datetime.now(tz)
+def get_now(config_path: str = CONFIG_PATH) -> datetime:
+    """
+    Получает текущее время в указанном часовом поясе.
+    
+    Args:
+        config_path: Путь к файлу конфигурации
+    
+    Returns:
+        datetime: Текущее время в указанном часовом поясе
+    """
+    return datetime.now(pytz.timezone(get_timezone(config_path)))
 
 
 class TZFormatter(logging.Formatter):
-    def __init__(self, fmt, datefmt, config_path=CONFIG_PATH):
+    """
+    Форматтер для логов с учетом часового пояса.
+    """
+    def __init__(self, fmt: str, datefmt: str, config_path: str = CONFIG_PATH):
+        """
+        Инициализирует форматтер.
+        
+        Args:
+            fmt: Формат сообщения
+            datefmt: Формат даты
+            config_path: Путь к файлу конфигурации
+        """
         super().__init__(fmt, datefmt)
         self.config_path = config_path
 
-    def formatTime(self, record, datefmt=None):
-        tz = get_timezone(self.config_path)
-        ct = datetime.fromtimestamp(record.created, tz)
+    def formatTime(self, record: logging.LogRecord, datefmt: Optional[str] = None) -> str:
+        """
+        Форматирует время записи лога.
+        
+        Args:
+            record: Запись лога
+            datefmt: Формат даты (опционально)
+        
+        Returns:
+            str: Отформатированное время
+        """
+        dt = datetime.fromtimestamp(record.created)
+        dt = pytz.timezone(get_timezone(self.config_path)).localize(dt)
         if datefmt:
-            s = ct.strftime(datefmt)
-        else:
-            s = ct.isoformat()
-        return s 
+            return dt.strftime(datefmt)
+        return dt.strftime("%Y-%m-%d %H:%M:%S %Z") 
