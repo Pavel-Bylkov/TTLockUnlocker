@@ -595,8 +595,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_config(cfg)
         # Перезапуск auto_unlocker
         await restart_auto_unlocker_and_notify(update, logger, f"Перерыв {interval} добавлен для {day}. Auto_unlocker перезапущен, изменения применены.", f"Перерыв {interval} добавлен для {day}, но не удалось перезапустить auto_unlocker")
-        await send_message(update, f"Перерыв {interval} добавлен для {day}.")
-        await send_message(update, "Пожалуйста, выберите день из списка:", reply_markup=ReplyKeyboardMarkup([DAYS_RU], one_time_keyboard=True))
+        await send_message(update, f"Перерыв {interval} добавлен для {day}.\nПожалуйста, выберите день из списка:", reply_markup=ReplyKeyboardMarkup([DAYS_RU], one_time_keyboard=True))
         return SETBREAK_DAY
     except Exception as e:
         msg = f"Ошибка разбора интервала перерыва {interval} для {day}: {e}"
