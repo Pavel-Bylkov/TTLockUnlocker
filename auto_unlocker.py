@@ -86,7 +86,7 @@ def load_config() -> Dict[str, Any]:
         dict: Конфигурация с настройками
     """
     default = {
-        "timezone": "Europe/Moscow",
+        "timezone": "Asia/Novosibirsk",
         "schedule_enabled": True,
         "open_times": {
             "monday": "09:00",
