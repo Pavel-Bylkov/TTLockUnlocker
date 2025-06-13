@@ -2,10 +2,16 @@ import pytest
 import ttlock_api
 import os
 
-os.environ['TTLOCK_PASSWORD'] = 'test'
-os.environ['TTLOCK_CLIENT_ID'] = 'test'
-os.environ['TTLOCK_CLIENT_SECRET'] = 'test'
-os.environ['TTLOCK_USERNAME'] = 'test'
+@pytest.fixture(autouse=True)
+def setup_env():
+    os.environ['TTLOCK_PASSWORD'] = 'test_password'
+    os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
+    os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
+    os.environ['TTLOCK_USERNAME'] = 'test_username'
+    yield
+    # Очистка переменных окружения после теста
+    for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET', 'TTLOCK_USERNAME']:
+        os.environ.pop(key, None)
 
 class DummyLogger:
     def __init__(self):
