@@ -8,16 +8,30 @@ import schedule
 
 @pytest.fixture(autouse=True)
 def setup_env():
+    # Сохраняем оригинальные значения
+    original_values = {}
+    for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET',
+                'TTLOCK_USERNAME', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TTLOCK_LOCK_ID']:
+        original_values[key] = os.environ.get(key)
+        if key in os.environ:
+            del os.environ[key]
+
+    # Устанавливаем тестовые значения
     os.environ['TTLOCK_PASSWORD'] = 'test_password'
     os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
     os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
     os.environ['TTLOCK_USERNAME'] = 'test_username'
     os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
     os.environ['TELEGRAM_CHAT_ID'] = 'test_chat_id'
+
     yield
-    for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET', 
-                'TTLOCK_USERNAME', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']:
-        os.environ.pop(key, None)
+
+    # Восстанавливаем оригинальные значения
+    for key, value in original_values.items():
+        if value is not None:
+            os.environ[key] = value
+        elif key in os.environ:
+            del os.environ[key]
 
 @pytest.fixture
 def mock_config():
@@ -72,16 +86,15 @@ def test_resolve_lock_id_from_env():
     with patch('ttlock_api.list_locks') as mock_list_locks:
         os.environ['TTLOCK_LOCK_ID'] = 'test_lock_id'
         token = 'test_token'
-        
+
         lock_id = auto_unlocker.resolve_lock_id(token)
         assert lock_id == 'test_lock_id'
         mock_list_locks.assert_not_called()
 
 def test_resolve_lock_id_from_list():
     with patch('ttlock_api.list_locks') as mock_list_locks:
-        os.environ.pop('TTLOCK_LOCK_ID', None)
         mock_list_locks.return_value = [{'lockId': 'test_lock_id', 'lockName': 'Test Lock'}]
-        
+
         lock_id = auto_unlocker.resolve_lock_id('test_token')
         assert lock_id == 'test_lock_id'
         mock_list_locks.assert_called_once()
@@ -90,14 +103,14 @@ def test_job_success():
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve:
-        
+
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.return_value = {'errcode': 0, 'success': True}
-        
+
         auto_unlocker.LOCK_ID = None
         auto_unlocker.job()
-        
+
         mock_get_token.assert_called_once()
         mock_resolve.assert_called_once()
         mock_unlock.assert_called_once()
@@ -106,8 +119,8 @@ def test_job_with_retries():
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
-         patch('auto_unlocker.get_now') as mock_now:
-        
+         patch('ttlock_api.get_now') as mock_now:
+
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
         mock_unlock.side_effect = [
@@ -116,13 +129,13 @@ def test_job_with_retries():
             {'errcode': -3037, 'success': False},  # Третья попытка - замок занят
             {'errcode': 0, 'success': True}        # Четвертая попытка - успех
         ]
-        
+
         # Устанавливаем текущее время 9:00
         mock_now.return_value = datetime.now().replace(hour=9, minute=0)
-        
+
         auto_unlocker.LOCK_ID = 'test_lock_id'
         auto_unlocker.job()
-        
+
         assert mock_unlock.call_count == 4
         # Проверяем, что последняя попытка была в 9:15
         assert mock_now.call_count > 0
@@ -131,7 +144,7 @@ def test_job_max_retries():
     with patch('ttlock_api.get_token') as mock_get_token, \
          patch('ttlock_api.unlock_lock') as mock_unlock, \
          patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
-         patch('auto_unlocker.get_now') as mock_now:
+         patch('ttlock_api.get_now') as mock_now:
         
         mock_get_token.return_value = 'test_token'
         mock_resolve.return_value = 'test_lock_id'
