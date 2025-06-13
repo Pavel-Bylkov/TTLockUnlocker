@@ -3,7 +3,7 @@ import auto_unlocker
 import os
 import json
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 import schedule
 
 @pytest.fixture(autouse=True)
@@ -73,6 +73,54 @@ def test_load_config_from_file(mock_config):
         config = auto_unlocker.load_config()
         assert config == mock_config
 
+def test_load_config_file_not_found():
+    """Тест загрузки конфигурации при отсутствии файла"""
+    with patch('builtins.open', MagicMock(side_effect=FileNotFoundError())):
+        config = auto_unlocker.load_config()
+        assert config["timezone"] == "Asia/Novosibirsk"
+        assert config["schedule_enabled"] is True
+        assert config["open_times"]["monday"] == "09:00"
+        assert config["breaks"]["monday"] == ["13:00-14:00"]
+
+def test_load_config_invalid_json():
+    """Тест загрузки конфигурации при некорректном JSON"""
+    mock_file = MagicMock()
+    mock_file.__enter__.return_value.read.return_value = "invalid json"
+    with patch('builtins.open', return_value=mock_file):
+        config = auto_unlocker.load_config()
+        assert config["timezone"] == "Asia/Novosibirsk"
+        assert config["schedule_enabled"] is True
+
+def test_load_config_custom_values():
+    """Тест загрузки конфигурации с пользовательскими значениями"""
+    custom_config = {
+        "timezone": "Europe/Moscow",
+        "schedule_enabled": False,
+        "open_times": {
+            "monday": "10:00",
+            "tuesday": "10:00",
+            "wednesday": "10:00",
+            "thursday": "10:00",
+            "friday": "10:00",
+            "saturday": None,
+            "sunday": None
+        },
+        "breaks": {
+            "monday": ["12:00-13:00", "15:00-16:00"],
+            "tuesday": [],
+            "wednesday": [],
+            "thursday": [],
+            "friday": [],
+            "saturday": [],
+            "sunday": []
+        }
+    }
+    mock_file = MagicMock()
+    mock_file.__enter__.return_value.read.return_value = json.dumps(custom_config)
+    with patch('builtins.open', return_value=mock_file):
+        config = auto_unlocker.load_config()
+        assert config == custom_config
+
 def test_send_telegram_message():
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
@@ -81,6 +129,36 @@ def test_send_telegram_message():
 
         auto_unlocker.send_telegram_message("Test message")
         mock_post.assert_called_once()
+
+def test_send_telegram_message_success():
+    """Тест успешной отправки сообщения в Telegram"""
+    with patch('requests.post') as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        auto_unlocker.send_telegram_message("Test message")
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        assert "sendMessage" in args[0]
+        assert kwargs["data"]["text"] == "Test message"
+        assert kwargs["data"]["parse_mode"] == "HTML"
+
+def test_send_telegram_message_failure():
+    """Тест отправки сообщения в Telegram при ошибке"""
+    with patch('requests.post') as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad Request"
+        mock_post.return_value = mock_response
+
+        auto_unlocker.send_telegram_message("Test message")
+        mock_post.assert_called_once()
+
+def test_send_telegram_message_exception():
+    """Тест отправки сообщения в Telegram при исключении"""
+    with patch('requests.post', side_effect=Exception("Network error")):
+        auto_unlocker.send_telegram_message("Test message")
 
 def test_resolve_lock_id_from_env():
     with patch('ttlock_api.list_locks') as mock_list_locks:
@@ -158,3 +236,33 @@ def test_job_max_retries():
 
         # Проверяем, что не было попыток после 21:00
         assert mock_unlock.call_count <= 3
+
+def test_debug_request():
+    """Тест отладочного вывода HTTP-запроса"""
+    with patch('builtins.print') as mock_print:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"status": "ok"}
+
+        auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
+
+        assert mock_print.call_count == 4
+        calls = [call.args[0] for call in mock_print.call_args_list]
+        assert "[DEBUG] Test Request" in calls[0]
+        assert "URL: http://test.com" in calls[1]
+        assert "Параметры запроса: " in calls[2]
+        assert "Статус ответа: 200" in calls[3]
+
+def test_debug_request_non_json_response():
+    """Тест отладочного вывода HTTP-запроса с не-JSON ответом"""
+    with patch('builtins.print') as mock_print:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = Exception("Not JSON")
+        mock_response.text = "Plain text response"
+
+        auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
+
+        assert mock_print.call_count == 4
+        calls = [call.args[0] for call in mock_print.call_args_list]
+        assert "Тело ответа (не JSON): Plain text response" in calls[3]

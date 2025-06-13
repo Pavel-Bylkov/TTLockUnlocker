@@ -2,7 +2,55 @@ import pytest
 import telegram_bot
 import os
 import json
-import types
+from unittest.mock import patch, MagicMock, AsyncMock
+from telegram import Update, Message, Chat, User
+from telegram.ext import ContextTypes
+
+@pytest.fixture(autouse=True)
+def setup_env():
+    # Сохраняем оригинальные значения
+    original_values = {}
+    for key in ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_CODEWORD',
+                'AUTO_UNLOCKER_CONTAINER', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET',
+                'TTLOCK_USERNAME', 'TTLOCK_PASSWORD', 'TTLOCK_LOCK_ID']:
+        original_values[key] = os.environ.get(key)
+        if key in os.environ:
+            del os.environ[key]
+
+    # Устанавливаем тестовые значения
+    os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
+    os.environ['TELEGRAM_CHAT_ID'] = '123456'
+    os.environ['TELEGRAM_CODEWORD'] = 'test_codeword'
+    os.environ['AUTO_UNLOCKER_CONTAINER'] = 'test_container'
+    os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
+    os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
+    os.environ['TTLOCK_USERNAME'] = 'test_username'
+    os.environ['TTLOCK_PASSWORD'] = 'test_password'
+
+    yield
+
+    # Восстанавливаем оригинальные значения
+    for key, value in original_values.items():
+        if value is not None:
+            os.environ[key] = value
+        elif key in os.environ:
+            del os.environ[key]
+
+@pytest.fixture
+def mock_update():
+    update = MagicMock(spec=Update)
+    update.effective_chat = MagicMock(spec=Chat)
+    update.effective_chat.id = 123456
+    update.message = MagicMock(spec=Message)
+    update.message.chat_id = 123456
+    update.message.text = "test message"
+    return update
+
+@pytest.fixture
+def mock_context():
+    context = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
+    context.user_data = {}
+    return context
 
 def test_load_and_save_config(tmp_path):
     config = {"timezone": "Europe/Moscow", "schedule_enabled": False}
@@ -139,4 +187,136 @@ async def test_settimezone(monkeypatch):
     assert res == telegram_bot.SET_TIMEZONE
     assert any("часовой пояс" in r[0].lower() for r in update.message.replies)
 
-# Аналогично можно покрыть settime, setbreak, restart_auto_unlocker_cmd и другие команды, используя monkeypatch и DummyUpdate/DummyContext. 
+def test_load_config_file_not_found():
+    """Тест загрузки конфигурации при отсутствии файла"""
+    with patch('builtins.open', MagicMock(side_effect=FileNotFoundError())):
+        config = telegram_bot.load_config()
+        assert config == {}
+
+def test_load_config_invalid_json():
+    """Тест загрузки конфигурации при некорректном JSON"""
+    mock_file = MagicMock()
+    mock_file.__enter__.return_value.read.return_value = "invalid json"
+    with patch('builtins.open', return_value=mock_file):
+        config = telegram_bot.load_config()
+        assert config == {}
+
+def test_load_config_success():
+    """Тест успешной загрузки конфигурации"""
+    test_config = {
+        "timezone": "Europe/Moscow",
+        "schedule_enabled": True,
+        "open_times": {"monday": "09:00"},
+        "breaks": {"monday": ["13:00-14:00"]}
+    }
+    mock_file = MagicMock()
+    mock_file.__enter__.return_value.read.return_value = json.dumps(test_config)
+    with patch('builtins.open', return_value=mock_file):
+        config = telegram_bot.load_config()
+        assert config == test_config
+
+def test_save_config():
+    """Тест сохранения конфигурации"""
+    test_config = {
+        "timezone": "Europe/Moscow",
+        "schedule_enabled": True
+    }
+    mock_file = MagicMock()
+    with patch('builtins.open', return_value=mock_file) as mock_open:
+        telegram_bot.save_config(test_config)
+        mock_open.assert_called_once()
+        mock_file.__enter__.return_value.write.assert_called_once()
+
+def test_is_authorized():
+    """Тест проверки авторизации"""
+    update = MagicMock(spec=Update)
+    update.effective_chat = MagicMock(spec=Chat)
+
+    # Тест с правильным chat_id
+    update.effective_chat.id = 123456
+    assert telegram_bot.is_authorized(update) is True
+
+    # Тест с неправильным chat_id
+    update.effective_chat.id = 654321
+    assert telegram_bot.is_authorized(update) is False
+
+@pytest.mark.asyncio
+async def test_start_command(mock_update, mock_context):
+    """Тест команды /start"""
+    with patch('telegram_bot.menu', new_callable=AsyncMock) as mock_menu:
+        await telegram_bot.start(mock_update, mock_context)
+        mock_menu.assert_called_once_with(mock_update, mock_context)
+
+@pytest.mark.asyncio
+async def test_setchat_command(mock_update, mock_context):
+    """Тест команды /setchat"""
+    await telegram_bot.setchat(mock_update, mock_context)
+    mock_update.message.reply_text.assert_called_once_with("Введите кодовое слово:")
+    assert mock_context.user_data == {}
+
+@pytest.mark.asyncio
+async def test_check_codeword_correct(mock_update, mock_context):
+    """Тест проверки правильного кодового слова"""
+    mock_update.message.text = "test_codeword"
+    result = await telegram_bot.check_codeword(mock_update, mock_context)
+    assert result == telegram_bot.CONFIRM_CHANGE
+    assert mock_context.user_data['new_chat_id'] == 123456
+    mock_update.message.reply_text.assert_called_once_with(
+        "Кодовое слово верно! Подтвердите смену получателя (да/нет):"
+    )
+
+@pytest.mark.asyncio
+async def test_check_codeword_incorrect(mock_update, mock_context):
+    """Тест проверки неправильного кодового слова"""
+    mock_update.message.text = "wrong_codeword"
+    result = await telegram_bot.check_codeword(mock_update, mock_context)
+    assert result == telegram_bot.ConversationHandler.END
+    mock_update.message.reply_text.assert_called_once_with("Неверное кодовое слово.")
+
+@pytest.mark.asyncio
+async def test_confirm_change_yes(mock_update, mock_context):
+    """Тест подтверждения смены chat_id (да)"""
+    mock_update.message.text = "да"
+    mock_context.user_data['new_chat_id'] = 123456
+
+    with patch('builtins.open', MagicMock()) as mock_file, \
+         patch('telegram_bot.restart_auto_unlocker_and_notify', new_callable=AsyncMock) as mock_restart:
+
+        result = await telegram_bot.confirm_change(mock_update, mock_context)
+        assert result == telegram_bot.ConversationHandler.END
+        mock_restart.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_confirm_change_no(mock_update, mock_context):
+    """Тест подтверждения смены chat_id (нет)"""
+    mock_update.message.text = "нет"
+    result = await telegram_bot.confirm_change(mock_update, mock_context)
+    assert result == telegram_bot.ConversationHandler.END
+    mock_update.message.reply_text.assert_called_once_with("Операция отменена.")
+
+@pytest.mark.asyncio
+async def test_status_command(mock_update, mock_context):
+    """Тест команды /status"""
+    with patch('telegram_bot.load_config', return_value={
+        "timezone": "Europe/Moscow",
+        "schedule_enabled": True,
+        "open_times": {"monday": "09:00"},
+        "breaks": {"monday": ["13:00-14:00"]}
+    }), \
+    patch('docker.from_env') as mock_docker:
+        mock_container = MagicMock()
+        mock_container.status = "running"
+        mock_docker.return_value.containers.get.return_value = mock_container
+
+        await telegram_bot.status(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "работает" in mock_update.message.reply_text.call_args[0][0]
+
+@pytest.mark.asyncio
+async def test_menu_command(mock_update, mock_context):
+    """Тест команды /menu"""
+    await telegram_bot.menu(mock_update, mock_context)
+    mock_update.message.reply_text.assert_called_once()
+    assert "Выберите действие" in mock_update.message.reply_text.call_args[0][0]
+
+
