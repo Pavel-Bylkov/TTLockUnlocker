@@ -67,12 +67,14 @@ def mock_send_message():
     return mock_send, sent_messages
 
 @pytest.fixture
-def mock_restart_and_notify():
+def mock_restart_and_notify(mock_send_message):
     """
     Фикстура для мока функции restart_auto_unlocker_and_notify.
     """
+    mock_send, _ = mock_send_message
+
     async def mock_restart(update, logger, message_success, message_error):
-        await send_message(update, message_success)
+        await mock_send(update, message_success)
         return None
 
     return mock_restart
