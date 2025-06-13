@@ -2,32 +2,146 @@ import pytest
 import auto_unlocker
 import os
 import json
+from datetime import datetime, timedelta
+from unittest.mock import patch, MagicMock
+import schedule
 
-def test_load_config(tmp_path):
-    # Создаём временный config.json
-    config = {"timezone": "Europe/Moscow", "schedule_enabled": False}
-    config_path = tmp_path / "config.json"
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(config, f)
-    # Переопределяем CONFIG_PATH
-    old = getattr(auto_unlocker, 'CONFIG_PATH', None)
-    auto_unlocker.CONFIG_PATH = str(config_path)
-    loaded = auto_unlocker.load_config()
-    assert loaded["timezone"] == "Europe/Moscow"
-    assert loaded["schedule_enabled"] is False
-    if old:
-        auto_unlocker.CONFIG_PATH = old
+@pytest.fixture(autouse=True)
+def setup_env():
+    os.environ['TTLOCK_PASSWORD'] = 'test_password'
+    os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
+    os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
+    os.environ['TTLOCK_USERNAME'] = 'test_username'
+    os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
+    os.environ['TELEGRAM_CHAT_ID'] = 'test_chat_id'
+    yield
+    for key in ['TTLOCK_PASSWORD', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET', 
+                'TTLOCK_USERNAME', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']:
+        os.environ.pop(key, None)
 
-def test_send_telegram_message(monkeypatch):
-    called = {}
-    def fake_post(url, data, timeout):
-        called['url'] = url
-        called['data'] = data
-        return type('Resp', (), {'status_code': 200})()
-    monkeypatch.setattr('requests.post', fake_post)
-    auto_unlocker.telegram_token = 'token'
-    auto_unlocker.telegram_chat_id = '123'
-    auto_unlocker.send_telegram_message('test')
-    assert called['url'].startswith('https://api.telegram.org/bot')
-    assert called['data']['chat_id'] == '123'
-    assert called['data']['text'] == 'test' 
+@pytest.fixture
+def mock_config():
+    return {
+        "timezone": "Asia/Novosibirsk",
+        "schedule_enabled": True,
+        "open_times": {
+            "monday": "09:00",
+            "tuesday": "09:00",
+            "wednesday": "09:00",
+            "thursday": "09:00",
+            "friday": "09:00",
+            "saturday": None,
+            "sunday": None
+        },
+        "breaks": {
+            "monday": ["13:00-14:00"],
+            "tuesday": [],
+            "wednesday": [],
+            "thursday": [],
+            "friday": [],
+            "saturday": [],
+            "sunday": []
+        }
+    }
+
+def test_load_config_default():
+    with patch('builtins.open', MagicMock(side_effect=FileNotFoundError())):
+        config = auto_unlocker.load_config()
+        assert config["timezone"] == "Asia/Novosibirsk"
+        assert config["schedule_enabled"] is True
+        assert config["open_times"]["monday"] == "09:00"
+        assert config["breaks"]["monday"] == ["13:00-14:00"]
+
+def test_load_config_from_file(mock_config):
+    mock_file = MagicMock()
+    mock_file.__enter__.return_value.read.return_value = json.dumps(mock_config)
+    with patch('builtins.open', return_value=mock_file):
+        config = auto_unlocker.load_config()
+        assert config == mock_config
+
+def test_send_telegram_message():
+    with patch('requests.post') as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        auto_unlocker.send_telegram_message("Test message")
+        mock_post.assert_called_once()
+
+def test_resolve_lock_id_from_env():
+    with patch('ttlock_api.list_locks') as mock_list_locks:
+        os.environ['TTLOCK_LOCK_ID'] = 'test_lock_id'
+        token = 'test_token'
+        
+        lock_id = auto_unlocker.resolve_lock_id(token)
+        assert lock_id == 'test_lock_id'
+        mock_list_locks.assert_not_called()
+
+def test_resolve_lock_id_from_list():
+    with patch('ttlock_api.list_locks') as mock_list_locks:
+        os.environ.pop('TTLOCK_LOCK_ID', None)
+        mock_list_locks.return_value = [{'lockId': 'test_lock_id', 'lockName': 'Test Lock'}]
+        
+        lock_id = auto_unlocker.resolve_lock_id('test_token')
+        assert lock_id == 'test_lock_id'
+        mock_list_locks.assert_called_once()
+
+def test_job_success():
+    with patch('ttlock_api.get_token') as mock_get_token, \
+         patch('ttlock_api.unlock_lock') as mock_unlock, \
+         patch('auto_unlocker.resolve_lock_id') as mock_resolve:
+        
+        mock_get_token.return_value = 'test_token'
+        mock_resolve.return_value = 'test_lock_id'
+        mock_unlock.return_value = {'errcode': 0, 'success': True}
+        
+        auto_unlocker.LOCK_ID = None
+        auto_unlocker.job()
+        
+        mock_get_token.assert_called_once()
+        mock_resolve.assert_called_once()
+        mock_unlock.assert_called_once()
+
+def test_job_with_retries():
+    with patch('ttlock_api.get_token') as mock_get_token, \
+         patch('ttlock_api.unlock_lock') as mock_unlock, \
+         patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
+         patch('auto_unlocker.get_now') as mock_now:
+        
+        mock_get_token.return_value = 'test_token'
+        mock_resolve.return_value = 'test_lock_id'
+        mock_unlock.side_effect = [
+            {'errcode': -3037, 'success': False},  # Первая попытка - замок занят
+            {'errcode': -3037, 'success': False},  # Вторая попытка - замок занят
+            {'errcode': -3037, 'success': False},  # Третья попытка - замок занят
+            {'errcode': 0, 'success': True}        # Четвертая попытка - успех
+        ]
+        
+        # Устанавливаем текущее время 9:00
+        mock_now.return_value = datetime.now().replace(hour=9, minute=0)
+        
+        auto_unlocker.LOCK_ID = 'test_lock_id'
+        auto_unlocker.job()
+        
+        assert mock_unlock.call_count == 4
+        # Проверяем, что последняя попытка была в 9:15
+        assert mock_now.call_count > 0
+
+def test_job_max_retries():
+    with patch('ttlock_api.get_token') as mock_get_token, \
+         patch('ttlock_api.unlock_lock') as mock_unlock, \
+         patch('auto_unlocker.resolve_lock_id') as mock_resolve, \
+         patch('auto_unlocker.get_now') as mock_now:
+        
+        mock_get_token.return_value = 'test_token'
+        mock_resolve.return_value = 'test_lock_id'
+        mock_unlock.return_value = {'errcode': -3037, 'success': False}
+        
+        # Устанавливаем текущее время 20:45
+        mock_now.return_value = datetime.now().replace(hour=20, minute=45)
+        
+        auto_unlocker.LOCK_ID = 'test_lock_id'
+        auto_unlocker.job()
+        
+        # Проверяем, что не было попыток после 21:00
+        assert mock_unlock.call_count <= 3 

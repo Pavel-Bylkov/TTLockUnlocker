@@ -61,4 +61,4 @@ def test_unlock_lock_fail(monkeypatch, logger):
         return Resp()
     monkeypatch.setattr('requests.post', fake_post)
     resp = ttlock_api.unlock_lock('token', 'lockid', logger)
-    assert resp['errcode'] == -1
+    assert resp['errcode'] == -1 

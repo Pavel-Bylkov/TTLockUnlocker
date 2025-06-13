@@ -11,7 +11,7 @@ import time
 import hashlib
 import urllib3
 import schedule
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 import logging
@@ -59,6 +59,8 @@ if not all([client_id, client_secret, username, password]):
 # Максимум попыток и задержка между ними
 MAX_RETRIES = 3
 RETRY_DELAY = 2
+MAX_RETRY_TIME = 21  # Максимальное время для повторных попыток (21:00)
+RETRY_TIME_SHIFT = 15  # Смещение времени на 15 минут при неудаче
 
 # Глобальная переменная для lock_id, если он найден при старте
 LOCK_ID = None
@@ -175,7 +177,8 @@ def resolve_lock_id(token):
 
 def job():
     """
-    Основная задача: открыть замок в 9:00 по Новосибирску.
+    Основная задача: открыть замок в заданное время.
+    При неудаче делает повторные попытки с временным смещением.
     """
     global LOCK_ID
     now = ttlock_api.get_now()
@@ -184,6 +187,7 @@ def job():
     print(msg)
     logger.info(msg)
     send_telegram_message(f"🔔 <b>Запуск задачи открытия замка</b>\n{now_str}")
+
     token = ttlock_api.get_token(logger)
     if not token:
         msg = "Не удалось получить токен, задача пропущена."
@@ -191,6 +195,7 @@ def job():
         logger.error(msg)
         send_telegram_message(f"❗️ <b>Ошибка: не удалось получить токен</b>")
         return
+
     if LOCK_ID is None:
         LOCK_ID = resolve_lock_id(token)
         if LOCK_ID is None:
@@ -199,7 +204,52 @@ def job():
             logger.error(msg)
             send_telegram_message(f"❗️ <b>Ошибка: не удалось определить lock_id</b>")
             return
-    ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
+
+    current_hour = now.hour
+    retry_count = 0
+    max_retries = MAX_RETRIES
+
+    while current_hour < MAX_RETRY_TIME and retry_count < max_retries:
+        if retry_count > 0:
+            msg = f"Повторная попытка {retry_count}/{max_retries} в {now.strftime('%H:%M')}"
+            print(msg)
+            logger.info(msg)
+            send_telegram_message(f"🔄 <b>{msg}</b>")
+            time.sleep(RETRY_DELAY)
+
+        result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
+
+        if result.get('success'):
+            msg = f"✅ Замок успешно открыт (попытка {retry_count + 1})"
+            print(msg)
+            logger.info(msg)
+            send_telegram_message(f"✅ <b>{msg}</b>")
+            return
+        elif result.get('errcode') == -3037:  # Замок занят
+            retry_count += 1
+            if retry_count < max_retries:
+                continue
+            elif current_hour < MAX_RETRY_TIME - 1:  # Если еще не поздно
+                # Смещаем время на 15 минут вперед
+                now = now + timedelta(minutes=RETRY_TIME_SHIFT)
+                current_hour = now.hour
+                retry_count = 0
+                msg = f"⏰ Смещаем время открытия на {now.strftime('%H:%M')}"
+                print(msg)
+                logger.info(msg)
+                send_telegram_message(f"⏰ <b>{msg}</b>")
+                continue
+        else:
+            msg = f"❌ Ошибка при открытии замка: {result.get('errmsg', 'Unknown error')}"
+            print(msg)
+            logger.error(msg)
+            send_telegram_message(f"❌ <b>{msg}</b>")
+            return
+
+    msg = f"❌ Не удалось открыть замок после всех попыток до {MAX_RETRY_TIME}:00"
+    print(msg)
+    logger.error(msg)
+    send_telegram_message(f"❌ <b>{msg}</b>")
 
 
 def main():
