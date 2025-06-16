@@ -469,11 +469,11 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
 
     # Подтверждение изменения
     update.message.text = "да"
+    mock_env_content = "TELEGRAM_CHAT_ID=123\nOTHER_VAR=value\n"
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
-         patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify), \
-         patch('builtins.open', mock_open(read_data="TELEGRAM_CHAT_ID=123\n")), \
+         patch('builtins.open', mock_open(read_data=mock_env_content)), \
          patch('telegram_bot.ENV_PATH', '/app/.env'):
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
