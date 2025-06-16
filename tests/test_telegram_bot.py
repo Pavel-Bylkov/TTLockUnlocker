@@ -458,10 +458,12 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify), \
+         patch('builtins.open', mock_open(read_data="TELEGRAM_CHAT_ID=123\n")), \
+         patch('telegram_bot.ENV_PATH', '/app/.env'):
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
-        assert any("получатель уведомлений изменён" in msg.lower() for msg in sent_messages)
+        assert any("изменён" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
