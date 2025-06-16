@@ -130,8 +130,7 @@ def save_config(cfg: Dict[str, Any]) -> None:
     Сохраняет конфигурацию в файл.
     """
     try:
-        if DEBUG:
-            log_message("DEBUG", f"Сохранение конфигурации в {CONFIG_PATH}")
+        log_message("DEBUG", f"Сохранение конфигурации в {CONFIG_PATH}")
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     except Exception as e:
