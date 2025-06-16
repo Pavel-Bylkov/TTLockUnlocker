@@ -99,18 +99,18 @@ def mock_restart_and_notify(mock_send_message: Tuple[AsyncMock, List[str]]) -> A
     Returns:
         AsyncMock: Мок функции restart_auto_unlocker_and_notify
     """
-    mock_send, _ = mock_send_message
-    
+    mock_send, sent_messages = mock_send_message
+
     async def mock_restart(update: Any, logger: Any, message_success: str, message_error: str) -> None:
-        await mock_send(update, message_success)
+        sent_messages.append(message_success)
         return None
-    
+
     return mock_restart
 
 def test_load_and_save_config(tmp_path: Any) -> None:
     """
     Тест загрузки и сохранения конфигурации.
-    
+
     Args:
         tmp_path: Временный путь для тестовых файлов
     """
@@ -125,7 +125,7 @@ def test_load_and_save_config(tmp_path: Any) -> None:
 def test_is_authorized_true(monkeypatch: Any) -> None:
     """
     Тест проверки авторизации с правильным chat_id.
-    
+
     Args:
         monkeypatch: Фикстура для модификации объектов
     """
@@ -142,7 +142,7 @@ def test_is_authorized_true(monkeypatch: Any) -> None:
 def test_is_authorized_false(monkeypatch: Any) -> None:
     """
     Тест проверки авторизации с неправильным chat_id.
-    
+
     Args:
         monkeypatch: Фикстура для модификации объектов
     """
@@ -159,7 +159,7 @@ def test_is_authorized_false(monkeypatch: Any) -> None:
 def test_send_telegram_message(monkeypatch: Any) -> None:
     """
     Тест отправки сообщения в Telegram.
-    
+
     Args:
         monkeypatch: Фикстура для модификации объектов
     """
@@ -183,7 +183,7 @@ class DummyMessage:
         self.text = ''
         self.chat_id = 123
         self.replies: List[Tuple[str, Dict[str, Any]]] = []
-        
+
     async def reply_text(self, text: str, **kwargs: Any) -> None:
         self.replies.append((text, kwargs))
 
@@ -228,7 +228,7 @@ async def test_setchat() -> None:
 async def test_check_codeword(monkeypatch: Any) -> None:
     """
     Тест проверки кодового слова.
-    
+
     Args:
         monkeypatch: Фикстура для модификации объектов
     """
@@ -245,7 +245,7 @@ async def test_check_codeword(monkeypatch: Any) -> None:
 async def test_status(monkeypatch: Any) -> None:
     """
     Тест команды /status.
-    
+
     Args:
         monkeypatch: Фикстура для модификации объектов
     """
@@ -262,7 +262,7 @@ async def test_status(monkeypatch: Any) -> None:
 async def test_enable_disable_schedule(monkeypatch: Any) -> None:
     """
     Тест включения/выключения расписания.
-    
+
     Args:
         monkeypatch: Фикстура для модификации объектов
     """
@@ -310,9 +310,10 @@ async def test_setchat_command(mock_send_message: Tuple[AsyncMock, List[str]]) -
     update = DummyUpdate()
     context = DummyContext()
 
-    result = await telegram_bot.setchat(update, context)
-    assert result == telegram_bot.ASK_CODEWORD
-    assert any("кодовое слово" in msg.lower() for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.setchat(update, context)
+        assert result == telegram_bot.ASK_CODEWORD
+        assert any("кодовое слово" in msg.lower() for msg in sent_messages)
 
 @pytest.mark.asyncio
 async def test_check_codeword_correct(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -323,9 +324,10 @@ async def test_check_codeword_correct(mock_send_message: Tuple[AsyncMock, List[s
     update = DummyUpdate(text=telegram_bot.CODEWORD)
     context = DummyContext()
 
-    result = await telegram_bot.check_codeword(update, context)
-    assert result == telegram_bot.CONFIRM_CHANGE
-    assert any("подтвердите" in msg.lower() for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.check_codeword(update, context)
+        assert result == telegram_bot.CONFIRM_CHANGE
+        assert any("подтвердите" in msg.lower() for msg in sent_messages)
 
 @pytest.mark.asyncio
 async def test_check_codeword_incorrect(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -336,9 +338,10 @@ async def test_check_codeword_incorrect(mock_send_message: Tuple[AsyncMock, List
     update = DummyUpdate(text="wrong_codeword")
     context = DummyContext()
 
-    result = await telegram_bot.check_codeword(update, context)
-    assert result == telegram_bot.ConversationHandler.END
-    assert any("неверное" in msg.lower() for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.check_codeword(update, context)
+        assert result == telegram_bot.ConversationHandler.END
+        assert any("неверное" in msg.lower() for msg in sent_messages)
 
 @pytest.mark.asyncio
 async def test_confirm_change_no(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -349,9 +352,10 @@ async def test_confirm_change_no(mock_send_message: Tuple[AsyncMock, List[str]])
     update = DummyUpdate(text="нет")
     context = DummyContext()
 
-    result = await telegram_bot.confirm_change(update, context)
-    assert result == telegram_bot.ConversationHandler.END
-    assert any("отменено" in msg.lower() for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.confirm_change(update, context)
+        assert result == telegram_bot.ConversationHandler.END
+        assert any("отменено" in msg.lower() for msg in sent_messages)
 
 @pytest.mark.asyncio
 async def test_settime_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -363,20 +367,23 @@ async def test_settime_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> N
     context = DummyContext()
 
     # Начало настройки времени
-    with patch('telegram_bot.is_authorized', return_value=True):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
         result = await telegram_bot.settime(update, context)
         assert result == telegram_bot.SETTIME_DAY
         assert any("Выберите день недели" in msg for msg in sent_messages)
 
     # Выбор дня
     update.message.text = "Понедельник"
-    result = await telegram_bot.settime_day(update, context)
-    assert result == telegram_bot.SETTIME_VALUE
-    assert any("Введите время" in msg for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.settime_day(update, context)
+        assert result == telegram_bot.SETTIME_VALUE
+        assert any("Введите время" in msg for msg in sent_messages)
 
     # Ввод времени
     update.message.text = "09:00"
-    with patch('telegram_bot.save_config'), \
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
+         patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify'):
         result = await telegram_bot.settime_value(update, context)
         assert result == telegram_bot.SETTIME_DAY
@@ -392,26 +399,30 @@ async def test_setbreak_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> 
     context = DummyContext()
 
     # Начало настройки перерывов
-    with patch('telegram_bot.is_authorized', return_value=True):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
         result = await telegram_bot.setbreak(update, context)
         assert result == telegram_bot.SETBREAK_DAY
         assert any("Выберите день недели" in msg for msg in sent_messages)
 
     # Выбор дня
     update.message.text = "Понедельник"
-    result = await telegram_bot.setbreak_day(update, context)
-    assert result == telegram_bot.SETBREAK_ACTION
-    assert any("Текущие перерывы" in msg for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.setbreak_day(update, context)
+        assert result == telegram_bot.SETBREAK_ACTION
+        assert any("Текущие перерывы" in msg for msg in sent_messages)
 
     # Выбор действия
     update.message.text = "Добавить"
-    result = await telegram_bot.setbreak_action(update, context)
-    assert result == telegram_bot.SETBREAK_ADD
-    assert any("Введите время" in msg for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.setbreak_action(update, context)
+        assert result == telegram_bot.SETBREAK_ADD
+        assert any("Введите время" in msg for msg in sent_messages)
 
     # Ввод времени
     update.message.text = "13:00-14:00"
-    with patch('telegram_bot.save_config'), \
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
+         patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify'):
         result = await telegram_bot.setbreak_add(update, context)
         assert result == telegram_bot.SETBREAK_DAY
@@ -427,14 +438,16 @@ async def test_settimezone_flow(mock_send_message: Tuple[AsyncMock, List[str]], 
     context = DummyContext()
 
     # Начало настройки часового пояса
-    with patch('telegram_bot.is_authorized', return_value=True):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
         result = await telegram_bot.settimezone(update, context)
         assert result == telegram_bot.SETTIMEZONE_VALUE
         assert any("Введите часовой пояс" in msg for msg in sent_messages)
 
     # Ввод часового пояса
     update.message.text = "Europe/Moscow"
-    with patch('telegram_bot.save_config'), \
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
+         patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         result = await telegram_bot.settimezone_value(update, context)
         assert result == telegram_bot.ConversationHandler.END
@@ -450,19 +463,22 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
     context = DummyContext()
 
     # Начало настройки chat_id
-    result = await telegram_bot.setchat(update, context)
-    assert result == telegram_bot.ASK_CODEWORD
-    assert any("кодовое слово" in msg.lower() for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.setchat(update, context)
+        assert result == telegram_bot.ASK_CODEWORD
+        assert any("кодовое слово" in msg.lower() for msg in sent_messages)
 
     # Ввод кодового слова
     update.message.text = telegram_bot.CODEWORD
-    result = await telegram_bot.check_codeword(update, context)
-    assert result == telegram_bot.CONFIRM_CHANGE
-    assert any("подтвердите" in msg.lower() for msg in sent_messages)
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
+        result = await telegram_bot.check_codeword(update, context)
+        assert result == telegram_bot.CONFIRM_CHANGE
+        assert any("подтвердите" in msg.lower() for msg in sent_messages)
 
     # Подтверждение изменения
     update.message.text = "да"
-    with patch('telegram_bot.save_config'), \
+    with patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
+         patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
@@ -478,6 +494,7 @@ async def test_close_lock_command(mock_send_message: Tuple[AsyncMock, List[str]]
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
          patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True}):
         await telegram_bot.close_lock(update, context)
@@ -493,6 +510,7 @@ async def test_enable_schedule_command(mock_send_message: Tuple[AsyncMock, List[
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('telegram_bot.load_config', return_value={"schedule_enabled": False}), \
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
@@ -509,6 +527,7 @@ async def test_disable_schedule_command(mock_send_message: Tuple[AsyncMock, List
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('telegram_bot.load_config', return_value={"schedule_enabled": True}), \
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
@@ -525,6 +544,7 @@ async def test_logs_command(mock_send_message: Tuple[AsyncMock, List[str]]) -> N
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('builtins.open', mock_open(read_data="test log line")):
         await telegram_bot.logs(update, context)
         assert any("test log line" in msg for msg in sent_messages)
@@ -539,6 +559,7 @@ async def test_logs_command_with_days(mock_send_message: Tuple[AsyncMock, List[s
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('builtins.open', mock_open(read_data="test log line")):
         await telegram_bot.logs(update, context)
         assert any("test log line" in msg for msg in sent_messages)
@@ -553,6 +574,7 @@ async def test_logs_command_file_not_found(mock_send_message: Tuple[AsyncMock, L
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('builtins.open', side_effect=FileNotFoundError):
         await telegram_bot.logs(update, context)
         assert any("Файл логов не найден" in msg for msg in sent_messages)
@@ -567,6 +589,7 @@ async def test_logs_command_error(mock_send_message: Tuple[AsyncMock, List[str]]
     context = DummyContext()
 
     with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
          patch('builtins.open', side_effect=Exception("Test error")):
         await telegram_bot.logs(update, context)
         assert any("Ошибка чтения логов" in msg for msg in sent_messages)
@@ -581,14 +604,17 @@ async def test_setmaxretrytime_flow(mock_send_message: Tuple[AsyncMock, List[str
     context = DummyContext()
 
     # Начало настройки максимального времени
-    with patch('telegram_bot.is_authorized', return_value=True):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
         result = await telegram_bot.setmaxretrytime(update, context)
         assert result == telegram_bot.SETMAXRETRYTIME_VALUE
         assert any("Введите максимальное время" in msg for msg in sent_messages)
 
     # Ввод времени
     update.message.text = "21:00"
-    with patch('telegram_bot.save_config'), \
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send), \
+         patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         result = await telegram_bot.setmaxretrytime_value(update, context)
         assert result == telegram_bot.ConversationHandler.END
@@ -602,8 +628,9 @@ async def test_setmaxretrytime_invalid_format(mock_send_message: Tuple[AsyncMock
     mock_send, sent_messages = mock_send_message
     update = DummyUpdate(text="25:00")  # Некорректное время
     context = DummyContext()
-    
-    with patch('telegram_bot.is_authorized', return_value=True):
+
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.update.message.reply_text', side_effect=mock_send):
         result = await telegram_bot.setmaxretrytime_value(update, context)
         assert result == telegram_bot.SETMAXRETRYTIME_VALUE
         assert any("Неверный формат времени" in msg for msg in sent_messages)
