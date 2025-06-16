@@ -325,12 +325,13 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
         mock_datetime.now.return_value = datetime(2025, 6, 16, 21, 30)
 
         auto_unlocker.job()
-        assert mock_send.call_count == 4  # 3 попытки + сообщение о превышении времени
+        assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
         calls = [call[0][0] for call in mock_send.call_args_list]
         assert "Попытка 1: Ошибка открытия замка" in calls[0]
         assert "Попытка 2: Ошибка открытия замка" in calls[1]
         assert "Попытка 3: Ошибка открытия замка" in calls[2]
-        assert "Превышено максимальное время для попыток (21:00)" in calls[3]
+        assert "Не удалось открыть замок после 3 попыток" in calls[3]
+        assert "Превышено максимальное время для попыток (21:00)" in calls[4]
 
 def test_job_with_time_shift(mock_timezone, mock_datetime):
     """
