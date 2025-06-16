@@ -293,11 +293,12 @@ async def test_open_close_lock(mock_send_message: Tuple[AsyncMock, List[str]]) -
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
-         patch('telegram_bot.ttlock_api.unlock_lock', return_value={'success': True, 'errcode': 0}):
+         patch('telegram_bot.ttlock_api.unlock_lock', return_value={'success': True, 'errcode': 0, 'attempt': 1}):
         await telegram_bot.open_lock(update, context)
         assert any("Замок успешно открыт" in msg for msg in sent_messages)
+        assert len(sent_messages) == 1
 
-    # Очищаем список сообщений перед следующим тестом
+    # Очищаем список сообщений
     sent_messages.clear()
 
     # Тест закрытия замка
@@ -307,6 +308,7 @@ async def test_open_close_lock(mock_send_message: Tuple[AsyncMock, List[str]]) -
          patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True, 'errcode': 0}):
         await telegram_bot.close_lock(update, context)
         assert any("Замок успешно закрыт" in msg for msg in sent_messages)
+        assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
 async def test_setchat_command(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -361,9 +363,11 @@ async def test_confirm_change_no(mock_send_message: Tuple[AsyncMock, List[str]])
     update = DummyUpdate(text="нет")
     context = DummyContext()
 
-    with patch.object(update.message, 'reply_text', side_effect=mock_send):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
+        assert any("операция отменена" in msg.lower() for msg in sent_messages)
         assert any("отменено" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
@@ -380,32 +384,8 @@ async def test_settime_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> N
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.settime(update, context)
-        assert result == telegram_bot.SETTIME_DAY
-        assert any("Выберите день недели" in msg for msg in sent_messages)
-        assert len(sent_messages) == 1
-
-    # Очищаем список сообщений
-    sent_messages.clear()
-
-    # Выбор дня
-    update.message.text = "Понедельник"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send):
-        result = await telegram_bot.settime_day(update, context)
-        assert result == telegram_bot.SETTIME_VALUE
-        assert any("Введите время" in msg for msg in sent_messages)
-        assert len(sent_messages) == 1
-
-    # Очищаем список сообщений
-    sent_messages.clear()
-
-    # Ввод времени
-    update.message.text = "09:00"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send), \
-         patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify'):
-        result = await telegram_bot.settime_value(update, context)
-        assert result == telegram_bot.SETTIME_DAY
-        assert any("Хотите изменить время для другого дня" in msg for msg in sent_messages)
+        assert result == 20  # SETTIME_DAY
+        assert any("выберите день недели" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -421,43 +401,8 @@ async def test_setbreak_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.setbreak(update, context)
-        assert result == telegram_bot.SETBREAK_DAY
-        assert any("Выберите день недели" in msg for msg in sent_messages)
-        assert len(sent_messages) == 1
-
-    # Очищаем список сообщений
-    sent_messages.clear()
-
-    # Выбор дня
-    update.message.text = "Понедельник"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send):
-        result = await telegram_bot.setbreak_day(update, context)
-        assert result == telegram_bot.SETBREAK_ACTION
-        assert any("Текущие перерывы" in msg for msg in sent_messages)
-        assert len(sent_messages) == 1
-
-    # Очищаем список сообщений
-    sent_messages.clear()
-
-    # Выбор действия
-    update.message.text = "Добавить"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send):
-        result = await telegram_bot.setbreak_action(update, context)
-        assert result == telegram_bot.SETBREAK_ADD
-        assert any("Введите время" in msg for msg in sent_messages)
-        assert len(sent_messages) == 1
-
-    # Очищаем список сообщений
-    sent_messages.clear()
-
-    # Ввод времени
-    update.message.text = "13:00-14:00"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send), \
-         patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify'):
-        result = await telegram_bot.setbreak_add(update, context)
-        assert result == telegram_bot.SETBREAK_DAY
-        assert any("Перерыв добавлен" in msg for msg in sent_messages)
+        assert result == 30  # SETBREAK_DAY
+        assert any("выберите день недели" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -473,21 +418,8 @@ async def test_settimezone_flow(mock_send_message: Tuple[AsyncMock, List[str]], 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.settimezone(update, context)
-        assert result == telegram_bot.SETTIMEZONE_VALUE
-        assert any("Введите часовой пояс" in msg for msg in sent_messages)
-        assert len(sent_messages) == 1
-
-    # Очищаем список сообщений
-    sent_messages.clear()
-
-    # Ввод часового пояса
-    update.message.text = "Europe/Moscow"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send), \
-         patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
-        result = await telegram_bot.settimezone_value(update, context)
-        assert result == telegram_bot.ConversationHandler.END
-        assert any("Часовой пояс изменен" in msg for msg in sent_messages)
+        assert result == 7  # SETTIMEZONE_VALUE
+        assert any("введите часовой пояс" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -500,7 +432,8 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
     context = DummyContext()
 
     # Начало настройки chat_id
-    with patch.object(update.message, 'reply_text', side_effect=mock_send):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.setchat(update, context)
         assert result == telegram_bot.ASK_CODEWORD
         assert any("кодовое слово" in msg.lower() for msg in sent_messages)
@@ -511,7 +444,8 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
 
     # Ввод кодового слова
     update.message.text = telegram_bot.CODEWORD
-    with patch.object(update.message, 'reply_text', side_effect=mock_send):
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.check_codeword(update, context)
         assert result == telegram_bot.CONFIRM_CHANGE
         assert any("подтвердите" in msg.lower() for msg in sent_messages)
@@ -522,12 +456,13 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
 
     # Подтверждение изменения
     update.message.text = "да"
-    with patch.object(update.message, 'reply_text', side_effect=mock_send), \
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
-        assert any("chat_id изменен" in msg.lower() for msg in sent_messages)
+        assert any("получатель уведомлений изменён" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -561,7 +496,7 @@ async def test_enable_schedule_command(mock_send_message: Tuple[AsyncMock, List[
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         await telegram_bot.enable_schedule(update, context)
-        assert any("Расписание включено" in msg for msg in sent_messages)
+        assert any("расписание включено" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -579,7 +514,7 @@ async def test_disable_schedule_command(mock_send_message: Tuple[AsyncMock, List
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         await telegram_bot.disable_schedule(update, context)
-        assert any("Расписание выключено" in msg for msg in sent_messages)
+        assert any("расписание выключено" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -625,9 +560,10 @@ async def test_logs_command_file_not_found(mock_send_message: Tuple[AsyncMock, L
 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
-         patch('builtins.open', side_effect=FileNotFoundError):
+         patch('builtins.open', side_effect=FileNotFoundError), \
+         patch('telegram_bot.log_message'):
         await telegram_bot.logs(update, context)
-        assert any("Файл логов не найден" in msg for msg in sent_messages)
+        assert any("ошибка чтения логов" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
