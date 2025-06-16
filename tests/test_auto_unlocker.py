@@ -65,6 +65,15 @@ def mock_config():
         }
     }
 
+@pytest.fixture
+def mock_timezone():
+    """
+    Фикстура для мока часового пояса.
+    """
+    with patch('pytz.timezone') as mock_tz:
+        mock_tz.return_value = MagicMock()
+        yield mock_tz
+
 def test_load_config_default():
     """
     Тест загрузки конфигурации по умолчанию.
@@ -177,7 +186,7 @@ def test_resolve_lock_id_from_list():
         assert lock_id == 'test_lock_id'
         mock_list_locks.assert_called_once()
 
-def test_job_success():
+def test_job_success(mock_timezone):
     """
     Тест успешного выполнения задачи открытия замка.
     """
@@ -194,7 +203,7 @@ def test_job_success():
         auto_unlocker.job()
         mock_send.assert_called_once()
 
-def test_job_with_retries():
+def test_job_with_retries(mock_timezone):
     """
     Тест повторных попыток открытия замка при ошибке.
     """
@@ -217,7 +226,7 @@ def test_job_with_retries():
         assert mock_send.call_count == 3
         assert mock_sleep.call_count == 2  # Две паузы между попытками
 
-def test_job_with_successful_retry():
+def test_job_with_successful_retry(mock_timezone):
     """
     Тест успешного открытия замка со второй попытки.
     """
@@ -239,7 +248,7 @@ def test_job_with_successful_retry():
         assert mock_send.call_count == 2
         assert mock_sleep.call_count == 1  # Одна пауза между попытками
 
-def test_job_with_other_error():
+def test_job_with_other_error(mock_timezone):
     """
     Тест обработки других ошибок при открытии замка.
     """
