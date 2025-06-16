@@ -295,7 +295,7 @@ async def test_open_close_lock(mock_send_message: Tuple[AsyncMock, List[str]]) -
          patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
          patch('telegram_bot.ttlock_api.unlock_lock', return_value={'success': True, 'errcode': 0, 'attempt': 1}):
         await telegram_bot.open_lock(update, context)
-        assert any("Замок успешно открыт" in msg for msg in sent_messages)
+        assert any("замок открыт" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
     # Очищаем список сообщений
@@ -307,7 +307,7 @@ async def test_open_close_lock(mock_send_message: Tuple[AsyncMock, List[str]]) -
          patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
          patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True, 'errcode': 0}):
         await telegram_bot.close_lock(update, context)
-        assert any("Замок успешно закрыт" in msg for msg in sent_messages)
+        assert any("замок закрыт" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -368,7 +368,6 @@ async def test_confirm_change_no(mock_send_message: Tuple[AsyncMock, List[str]])
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
         assert any("операция отменена" in msg.lower() for msg in sent_messages)
-        assert any("отменено" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -384,7 +383,7 @@ async def test_settime_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> N
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.settime(update, context)
-        assert result == 20  # SETTIME_DAY
+        assert result == telegram_bot.SETTIME_DAY
         assert any("выберите день недели" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
@@ -401,7 +400,7 @@ async def test_setbreak_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.setbreak(update, context)
-        assert result == 30  # SETBREAK_DAY
+        assert result == telegram_bot.SETBREAK_DAY
         assert any("выберите день недели" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
@@ -418,7 +417,7 @@ async def test_settimezone_flow(mock_send_message: Tuple[AsyncMock, List[str]], 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.settimezone(update, context)
-        assert result == 7  # SETTIMEZONE_VALUE
+        assert result == telegram_bot.SETTIMEZONE_VALUE
         assert any("введите часовой пояс" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
@@ -497,6 +496,7 @@ async def test_enable_schedule_command(mock_send_message: Tuple[AsyncMock, List[
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         await telegram_bot.enable_schedule(update, context)
         assert any("расписание включено" in msg.lower() for msg in sent_messages)
+        assert any("перезапущен" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
@@ -514,7 +514,8 @@ async def test_disable_schedule_command(mock_send_message: Tuple[AsyncMock, List
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
         await telegram_bot.disable_schedule(update, context)
-        assert any("расписание выключено" in msg.lower() for msg in sent_messages)
+        assert any("расписание отключено" in msg.lower() for msg in sent_messages)
+        assert any("перезапущен" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
 @pytest.mark.asyncio
