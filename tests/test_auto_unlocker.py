@@ -70,8 +70,18 @@ def mock_timezone():
     """
     Фикстура для мока часового пояса.
     """
+    class MockTimezone:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def localize(self, dt):
+            return dt
+
+        def normalize(self, dt):
+            return dt
+
     with patch('pytz.timezone') as mock_tz:
-        mock_tz.return_value = MagicMock()
+        mock_tz.return_value = MockTimezone()
         yield mock_tz
 
 def test_load_config_default():
