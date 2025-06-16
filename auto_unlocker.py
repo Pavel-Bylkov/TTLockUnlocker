@@ -306,11 +306,10 @@ def job() -> None:
                 error_msg = result.get('errmsg', 'Неизвестная ошибка')
                 logger.error(f"Ошибка открытия замка: {error_msg}")
                 send_telegram_message(f"❗️ <b>Ошибка открытия замка:</b>\n{error_msg}")
-                break
+                return  # Выходим сразу при других ошибках
 
         if not success:
             logger.error(f"Не удалось открыть замок после {retry_count} попыток")
-            send_telegram_message(f"❗️ <b>Не удалось открыть замок после {retry_count} попыток</b>")
     else:
         logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
 
