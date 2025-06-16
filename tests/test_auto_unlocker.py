@@ -229,7 +229,7 @@ def test_job_success(mock_timezone, mock_datetime):
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
          patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
-         patch('auto_unlocker.LOCK_ID', 'test_lock_id'):
+         patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
         auto_unlocker.job()
         mock_send.assert_called_once()
@@ -252,7 +252,7 @@ def test_job_with_retries(mock_timezone, mock_datetime):
          ]), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch('time.sleep') as mock_sleep, \
-         patch('auto_unlocker.LOCK_ID', 'test_lock_id'):
+         patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
         auto_unlocker.job()
         assert mock_send.call_count == 3
@@ -274,7 +274,7 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
          ]), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch('time.sleep') as mock_sleep, \
-         patch('auto_unlocker.LOCK_ID', 'test_lock_id'):
+         patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
         auto_unlocker.job()
         assert mock_send.call_count == 2
@@ -293,7 +293,7 @@ def test_job_with_other_error(mock_timezone, mock_datetime):
          patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 10001, "errmsg": "Other error"}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch('time.sleep') as mock_sleep, \
-         patch('auto_unlocker.LOCK_ID', 'test_lock_id'):
+         patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
         auto_unlocker.job()
         assert mock_send.call_count == 1
