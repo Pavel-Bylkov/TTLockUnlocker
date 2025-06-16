@@ -228,25 +228,28 @@ def job() -> None:
     Основная задача: проверяет время и открывает замок если нужно.
     При неудаче делает повторные попытки с временным смещением.
     """
+    # Получаем LOCK_ID из переменных окружения
+    LOCK_ID = os.getenv('TTLOCK_LOCK_ID')
+
     logger.info("\n[%s] Запуск задачи открытия замка...", ttlock_api.get_now().strftime("%Y-%m-%d %H:%M:%S"))
-    
+
     # Получаем текущее время в нужном часовом поясе
     now = ttlock_api.get_now()
     current_time = now.strftime("%H:%M")
     current_day = now.strftime("%A").lower()
-    
+
     # Проверяем, нужно ли открывать замок
     cfg = load_config()
     if not cfg.get("schedule_enabled", True):
         logger.info("Расписание отключено")
         return
-        
+
     # Проверяем время открытия
     open_time = cfg.get("open_times", {}).get(current_day)
     if not open_time:
         logger.info("Сегодня замок не открывается")
         return
-        
+
     # Проверяем, не перерыв ли сейчас
     breaks = cfg.get("breaks", {}).get(current_day, [])
     for break_time in breaks:
@@ -254,7 +257,7 @@ def job() -> None:
         if start <= current_time <= end:
             logger.info("Сейчас перерыв")
             return
-            
+
     # Если текущее время совпадает с временем открытия
     if current_time == open_time:
         # Получаем токен
@@ -262,14 +265,12 @@ def job() -> None:
         if not token:
             logger.error("Не удалось получить токен")
             return
-            
+
         # Если LOCK_ID не задан, пробуем его получить
         if not LOCK_ID:
-            LOCK_ID = resolve_lock_id(token)
-            if not LOCK_ID:
-                logger.error("Не удалось получить ID замка")
-                return
-                
+            logger.error("LOCK_ID не задан")
+            return
+
         # Пробуем открыть замок с повторными попытками
         max_retries = 3
         retry_count = 0
