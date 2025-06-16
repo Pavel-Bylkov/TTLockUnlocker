@@ -100,30 +100,39 @@ def load_config() -> Dict[str, Any]:
     """
     Загружает конфигурацию из файла.
     """
+    default = {
+        "timezone": "Asia/Krasnoyarsk",  # Используем поддерживаемый часовой пояс
+        "schedule_enabled": True,
+        "open_times": {
+            "monday": "09:00",
+            "tuesday": "09:00",
+            "wednesday": "09:00",
+            "thursday": "09:00",
+            "friday": "09:00",
+            "saturday": None,
+            "sunday": None
+        },
+        "breaks": {
+            "monday": [],
+            "tuesday": [],
+            "wednesday": [],
+            "thursday": [],
+            "friday": [],
+            "saturday": [],
+            "sunday": []
+        }
+    }
     try:
         if DEBUG:
             log_message("DEBUG", f"Чтение конфигурации из {CONFIG_PATH}")
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
-            # Устанавливаем значения по умолчанию, если их нет
-            if "timezone" not in config:
-                config["timezone"] = "Asia/Novosibirsk"
-            if "schedule_enabled" not in config:
-                config["schedule_enabled"] = True
-            if "open_times" not in config:
-                config["open_times"] = {}
-            if "breaks" not in config:
-                config["breaks"] = {}
-            return config
+            # Объединяем с дефолтными значениями
+            default.update(config)
+            return default
     except Exception as e:
         log_message("ERROR", f"Ошибка чтения конфигурации: {e}")
-        # Возвращаем конфигурацию по умолчанию при ошибке
-        return {
-            "timezone": "Asia/Novosibirsk",
-            "schedule_enabled": True,
-            "open_times": {},
-            "breaks": {}
-        }
+        return default
 
 def save_config(cfg: Dict[str, Any]) -> None:
     """
