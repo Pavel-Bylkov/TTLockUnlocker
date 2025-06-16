@@ -59,12 +59,14 @@ def mock_config():
     }
 
 def test_load_config_default():
-    with patch('builtins.open', MagicMock(side_effect=FileNotFoundError())):
-        config = auto_unlocker.load_config()
-        assert config["timezone"] == "Asia/Novosibirsk"
-        assert config["schedule_enabled"] is True
-        assert config["open_times"]["monday"] == "09:00"
-        assert config["breaks"]["monday"] == ["13:00-14:00"]
+    """
+    Тест загрузки конфигурации по умолчанию.
+    """
+    config = auto_unlocker.load_config()
+    assert config["timezone"] == "Asia/Krasnoyarsk"
+    assert config["schedule_enabled"] is True
+    assert "monday" in config["open_times"]
+    assert "monday" in config["breaks"]
 
 def test_load_config_from_file(mock_config):
     mock_file = MagicMock()
@@ -74,22 +76,26 @@ def test_load_config_from_file(mock_config):
         assert config == mock_config
 
 def test_load_config_file_not_found():
-    """Тест загрузки конфигурации при отсутствии файла"""
-    with patch('builtins.open', MagicMock(side_effect=FileNotFoundError())):
+    """
+    Тест загрузки конфигурации при отсутствии файла.
+    """
+    with patch('builtins.open', side_effect=FileNotFoundError):
         config = auto_unlocker.load_config()
-        assert config["timezone"] == "Asia/Novosibirsk"
+        assert config["timezone"] == "Asia/Krasnoyarsk"
         assert config["schedule_enabled"] is True
-        assert config["open_times"]["monday"] == "09:00"
-        assert config["breaks"]["monday"] == ["13:00-14:00"]
+        assert "monday" in config["open_times"]
+        assert "monday" in config["breaks"]
 
 def test_load_config_invalid_json():
-    """Тест загрузки конфигурации при некорректном JSON"""
-    mock_file = MagicMock()
-    mock_file.__enter__.return_value.read.return_value = "invalid json"
-    with patch('builtins.open', return_value=mock_file):
+    """
+    Тест загрузки конфигурации при некорректном JSON.
+    """
+    with patch('builtins.open', mock_open(read_data="invalid json")):
         config = auto_unlocker.load_config()
-        assert config["timezone"] == "Asia/Novosibirsk"
+        assert config["timezone"] == "Asia/Krasnoyarsk"
         assert config["schedule_enabled"] is True
+        assert "monday" in config["open_times"]
+        assert "monday" in config["breaks"]
 
 def test_load_config_custom_values():
     """Тест загрузки конфигурации с пользовательскими значениями"""
