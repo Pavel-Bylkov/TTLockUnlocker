@@ -285,11 +285,17 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
+        # Сбрасываем TIME_SHIFT перед тестом
+        auto_unlocker.TIME_SHIFT = None
+
         # Устанавливаем текущее время равным времени открытия
         mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)
 
         auto_unlocker.job()
         assert mock_send.call_count == 2  # Сообщение об ошибке + сообщение об успешном открытии
+        calls = [call[0][0] for call in mock_send.call_args_list]
+        assert "Попытка 1: Ошибка открытия замка" in calls[0]
+        assert "Замок успешно открыт" in calls[1]
 
 def test_job_with_max_retry_time(mock_timezone, mock_datetime):
     """
@@ -312,11 +318,19 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
+        # Сбрасываем TIME_SHIFT перед тестом
+        auto_unlocker.TIME_SHIFT = None
+
         # Устанавливаем текущее время равным времени открытия
         mock_datetime.now.return_value = datetime(2025, 6, 16, 21, 30)
 
         auto_unlocker.job()
         assert mock_send.call_count == 4  # 3 попытки + сообщение о превышении времени
+        calls = [call[0][0] for call in mock_send.call_args_list]
+        assert "Попытка 1: Ошибка открытия замка" in calls[0]
+        assert "Попытка 2: Ошибка открытия замка" in calls[1]
+        assert "Попытка 3: Ошибка открытия замка" in calls[2]
+        assert "Превышено максимальное время для попыток (21:00)" in calls[3]
 
 def test_job_with_time_shift(mock_timezone, mock_datetime):
     """
@@ -333,13 +347,13 @@ def test_job_with_time_shift(mock_timezone, mock_datetime):
          patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
-        
+
         # Устанавливаем смещение времени
         auto_unlocker.TIME_SHIFT = "09:15"
-        
+
         # Мокаем текущее время как 09:15
         mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 15)
-        
+
         auto_unlocker.job()
         assert mock_send.call_count == 1
         calls = [call[0][0] for call in mock_send.call_args_list]
@@ -351,9 +365,9 @@ def test_debug_request():
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "ok"}
-        
+
         auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
-        
+
         assert mock_print.call_count == 5
         calls = [call.args[0] for call in mock_print.call_args_list]
         assert "[DEBUG] Test Request" in calls[0]
@@ -369,13 +383,13 @@ def test_debug_request_non_json_response():
         mock_response.status_code = 200
         mock_response.json.side_effect = Exception("Not JSON")
         mock_response.text = "Plain text response"
-        
+
         auto_unlocker.debug_request("Test Request", "http://test.com", {"param": "value"}, mock_response)
-        
+
         assert mock_print.call_count == 5
         calls = [call.args[0] for call in mock_print.call_args_list]
         assert "[DEBUG] Test Request" in calls[0]
         assert "URL: http://test.com" in calls[1]
         assert "Параметры запроса: " in calls[2]
         assert "Статус ответа: 200" in calls[3]
-        assert "Тело ответа (не JSON): Plain text response" in calls[4] 
+        assert "Тело ответа (не JSON): Plain text response" in calls[4]
