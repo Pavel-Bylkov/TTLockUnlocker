@@ -53,7 +53,15 @@ CODEWORD = os.getenv('TELEGRAM_CODEWORD', 'secretword')
 AUTO_UNLOCKER_CONTAINER = os.getenv('AUTO_UNLOCKER_CONTAINER', 'auto_unlocker_1')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-ASK_CODEWORD, CONFIRM_CHANGE = range(2)
+ASK_CODEWORD = 0
+CONFIRM_CHANGE = 1
+SETTIME_DAY = 2
+SETTIME_VALUE = 3
+SETBREAK_DAY = 4
+SETBREAK_ACTION = 5
+SETBREAK_ADD = 6
+SETTIMEZONE_VALUE = 7
+SETMAXRETRYTIME_VALUE = 8  # Новое состояние
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
@@ -724,6 +732,57 @@ async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_message("ERROR", f"Ошибка при получении логов: {e}")
         await send_message(update, f"Ошибка при получении логов: {e}")
 
+async def setmaxretrytime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Начало диалога настройки максимального времени для попыток.
+    """
+    if not is_authorized(update):
+        return ConversationHandler.END
+        
+    await update.message.reply_text(
+        "Введите максимальное время для попыток открытия замка в формате ЧЧ:ММ\n"
+        "Например: 21:00\n"
+        "Это время, после которого система прекратит попытки открыть замок в текущий день."
+    )
+    return SETMAXRETRYTIME_VALUE
+
+async def setmaxretrytime_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Обработка введенного максимального времени для попыток.
+    """
+    if not is_authorized(update):
+        return ConversationHandler.END
+        
+    time_str = update.message.text.strip()
+    
+    # Проверяем формат времени
+    try:
+        datetime.strptime(time_str, "%H:%M")
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Неверный формат времени. Используйте формат ЧЧ:ММ (например, 21:00)"
+        )
+        return SETMAXRETRYTIME_VALUE
+    
+    # Загружаем текущую конфигурацию
+    config = load_config()
+    
+    # Обновляем время
+    config["max_retry_time"] = time_str
+    
+    # Сохраняем конфигурацию
+    save_config(config)
+    
+    # Перезапускаем сервис
+    await restart_auto_unlocker_and_notify(
+        update,
+        logger,
+        f"✅ Максимальное время для попыток открытия установлено на {time_str}",
+        "❌ Ошибка при перезапуске сервиса"
+    )
+    
+    return ConversationHandler.END
+
 def main():
     """
     Точка входа: запускает Telegram-бота и обработчики команд.
@@ -777,6 +836,13 @@ def main():
                     SETBREAK_ACTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_action)],
                     SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_remove)],
+                },
+                fallbacks=[]
+            ),
+            ConversationHandler(
+                entry_points=[CommandHandler('setmaxretrytime', setmaxretrytime)],
+                states={
+                    SETMAXRETRYTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, setmaxretrytime_value)],
                 },
                 fallbacks=[]
             )

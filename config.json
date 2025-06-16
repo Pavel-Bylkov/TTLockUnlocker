@@ -1,6 +1,7 @@
 {
   "timezone": "Asia/Krasnoyarsk",
   "schedule_enabled": true,
+  "max_retry_time": "21:00",
   "open_times": {
     "monday": "09:01",
     "tuesday": "09:01",

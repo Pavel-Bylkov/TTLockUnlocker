@@ -66,6 +66,9 @@ RETRY_TIME_SHIFT = 15  # Смещение времени на 15 минут пр
 # Глобальная переменная для lock_id, если он найден при старте
 LOCK_ID = None
 
+# Глобальная переменная для хранения смещения времени на текущий день
+TIME_SHIFT = None
+
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
 LOG_FILENAME = "logs/auto_unlocker.log"
@@ -103,6 +106,7 @@ def load_config() -> Dict[str, Any]:
     default = {
         "timezone": "Asia/Krasnoyarsk",  # Используем поддерживаемый часовой пояс
         "schedule_enabled": True,
+        "max_retry_time": "21:00",  # Максимальное время для попыток открытия
         "open_times": {
             "monday": "09:00",
             "tuesday": "09:00",
@@ -228,28 +232,35 @@ def job() -> None:
     Основная задача: проверяет время и открывает замок если нужно.
     При неудаче делает повторные попытки с временным смещением.
     """
+    global TIME_SHIFT
+    
     # Получаем LOCK_ID из переменных окружения
     LOCK_ID = os.getenv('TTLOCK_LOCK_ID')
-
+    
     logger.info("\n[%s] Запуск задачи открытия замка...", ttlock_api.get_now().strftime("%Y-%m-%d %H:%M:%S"))
-
+    
     # Получаем текущее время в нужном часовом поясе
     now = ttlock_api.get_now()
     current_time = now.strftime("%H:%M")
     current_day = now.strftime("%A").lower()
-
+    
     # Проверяем, нужно ли открывать замок
     cfg = load_config()
     if not cfg.get("schedule_enabled", True):
         logger.info("Расписание отключено")
         return
-
+    
     # Проверяем время открытия
     open_time = cfg.get("open_times", {}).get(current_day)
     if not open_time:
         logger.info("Сегодня замок не открывается")
         return
-
+    
+    # Если есть смещение времени, используем его
+    if TIME_SHIFT:
+        open_time = TIME_SHIFT
+        logger.info(f"Используем смещенное время открытия: {open_time}")
+    
     # Проверяем, не перерыв ли сейчас
     breaks = cfg.get("breaks", {}).get(current_day, [])
     for break_time in breaks:
@@ -257,7 +268,7 @@ def job() -> None:
         if start <= current_time <= end:
             logger.info("Сейчас перерыв")
             return
-
+    
     # Если текущее время совпадает с временем открытия
     if current_time == open_time:
         # Получаем токен
@@ -266,50 +277,51 @@ def job() -> None:
             logger.error("Не удалось получить токен")
             send_telegram_message("❗️ <b>Ошибка: не удалось получить токен</b>")
             return
-
+        
         # Если LOCK_ID не задан, пробуем его получить
         if not LOCK_ID:
             logger.error("LOCK_ID не задан")
             send_telegram_message("❗️ <b>Ошибка: LOCK_ID не задан</b>")
             return
-
+        
         # Пробуем открыть замок с повторными попытками
         max_retries = 3
         retry_count = 0
         success = False
-
+        max_retry_time = cfg.get("max_retry_time", "21:00")
+        
         while retry_count < max_retries and not success:
             retry_count += 1
             result = ttlock_api.unlock_lock(token, LOCK_ID, logger)
-
+            
             if result.get("errcode") == 0:
                 success = True
                 logger.info("Замок успешно открыт")
                 send_telegram_message("✅ <b>Замок успешно открыт</b>")
                 break
-            elif result.get("errcode") == -3037:  # Замок занят
+            else:
+                error_msg = result.get('errmsg', 'Неизвестная ошибка')
+                logger.error(f"Ошибка открытия замка: {error_msg}")
+                send_telegram_message(f"⚠️ <b>Попытка {retry_count}: Ошибка открытия замка</b>\n{error_msg}")
+                
                 if retry_count < max_retries:
                     wait_time = 30 if retry_count == 1 else 60  # 30 сек после первой попытки, 1 мин после второй
-                    logger.warning(f"Попытка {retry_count}: Замок занят, ожидаем {wait_time} секунд...")
-                    send_telegram_message(f"⚠️ <b>Попытка {retry_count}: Замок занят</b>\nОжидаем {wait_time} секунд...")
+                    logger.warning(f"Ожидаем {wait_time} секунд...")
                     time.sleep(wait_time)
                 else:
                     logger.error("Не удалось открыть замок после 3 попыток")
                     send_telegram_message("❗️ <b>Не удалось открыть замок после 3 попыток</b>")
-                    # Смещаем время задачи на 15 минут позже
-                    new_time = (datetime.strptime(open_time, "%H:%M") + timedelta(minutes=15)).strftime("%H:%M")
-                    cfg["open_times"][current_day] = new_time
-                    save_config(cfg)
-                    logger.info(f"Время открытия смещено на {new_time}")
-                    send_telegram_message(f"ℹ️ <b>Время открытия смещено на {new_time}</b>")
-            else:
-                error_msg = result.get('errmsg', 'Неизвестная ошибка')
-                logger.error(f"Ошибка открытия замка: {error_msg}")
-                send_telegram_message(f"❗️ <b>Ошибка открытия замка:</b>\n{error_msg}")
-                return  # Выходим сразу при других ошибках
-
-        if not success:
-            logger.error(f"Не удалось открыть замок после {retry_count} попыток")
+                    
+                    # Проверяем, не превышено ли максимальное время для попыток
+                    if current_time < max_retry_time:
+                        # Смещаем время задачи на 15 минут позже
+                        new_time = (datetime.strptime(open_time, "%H:%M") + timedelta(minutes=15)).strftime("%H:%M")
+                        TIME_SHIFT = new_time
+                        logger.info(f"Время открытия смещено на {new_time}")
+                        send_telegram_message(f"ℹ️ <b>Время открытия смещено на {new_time}</b>")
+                    else:
+                        logger.error(f"Превышено максимальное время для попыток ({max_retry_time})")
+                        send_telegram_message(f"❗️ <b>Превышено максимальное время для попыток ({max_retry_time})</b>")
     else:
         logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
 
@@ -317,6 +329,11 @@ def main() -> None:
     """
     Основная функция: настраивает и запускает планировщик задач.
     """
+    global TIME_SHIFT
+    
+    # Сбрасываем смещение времени при старте
+    TIME_SHIFT = None
+    
     config = load_config()
     if not config.get("schedule_enabled", True):
         msg = "Расписание отключено в конфигурации."

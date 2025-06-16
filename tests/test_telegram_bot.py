@@ -615,3 +615,64 @@ async def test_logs_command_error(mock_update: MagicMock, mock_context: MagicMoc
          patch('builtins.open', side_effect=Exception("Test error")):
         await telegram_bot.logs(mock_update, mock_context)
         assert any("Ошибка чтения логов" in msg for msg in mock_update.message.replies)
+
+@pytest.mark.asyncio
+async def test_setmaxretrytime_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock_restart_and_notify: AsyncMock) -> None:
+    """
+    Тест процесса настройки максимального времени для попыток.
+    
+    Args:
+        mock_send_message: Фикстура для перехвата сообщений
+        mock_restart_and_notify: Фикстура для мока функции перезапуска
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate()
+    context = DummyContext()
+    
+    # Начало настройки максимального времени
+    with patch('telegram_bot.is_authorized', return_value=True):
+        result = await telegram_bot.setmaxretrytime(update, context)
+        assert result == telegram_bot.SETMAXRETRYTIME_VALUE
+        assert any("Введите максимальное время" in msg for msg in sent_messages)
+    
+    # Ввод времени
+    update.message.text = "21:00"
+    with patch('telegram_bot.save_config'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
+        result = await telegram_bot.setmaxretrytime_value(update, context)
+        assert result == telegram_bot.ConversationHandler.END
+        assert any("Максимальное время для попыток открытия установлено" in msg for msg in sent_messages)
+
+@pytest.mark.asyncio
+async def test_setmaxretrytime_invalid_format(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
+    """
+    Тест ввода некорректного формата времени.
+    
+    Args:
+        mock_send_message: Фикстура для перехвата сообщений
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate(text="25:00")  # Некорректное время
+    context = DummyContext()
+    
+    with patch('telegram_bot.is_authorized', return_value=True):
+        result = await telegram_bot.setmaxretrytime_value(update, context)
+        assert result == telegram_bot.SETMAXRETRYTIME_VALUE
+        assert any("Неверный формат времени" in msg for msg in sent_messages)
+
+@pytest.mark.asyncio
+async def test_setmaxretrytime_unauthorized(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
+    """
+    Тест попытки настройки времени неавторизованным пользователем.
+    
+    Args:
+        mock_send_message: Фикстура для перехвата сообщений
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate()
+    context = DummyContext()
+    
+    with patch('telegram_bot.is_authorized', return_value=False):
+        result = await telegram_bot.setmaxretrytime(update, context)
+        assert result == telegram_bot.ConversationHandler.END
+        assert not sent_messages  # Сообщения не должны отправляться
