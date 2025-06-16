@@ -100,7 +100,7 @@ def mock_datetime():
     Фикстура для мока текущего времени.
     """
     mock_dt = datetime(2025, 6, 16, 9, 0)  # Понедельник, 09:00
-    with patch('datetime.datetime') as mock_datetime:
+    with patch('auto_unlocker.datetime') as mock_datetime:
         mock_datetime.now.return_value = mock_dt
         yield mock_datetime
 
