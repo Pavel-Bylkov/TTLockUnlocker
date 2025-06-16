@@ -264,44 +264,53 @@ def job() -> None:
         token = ttlock_api.get_token(logger)
         if not token:
             logger.error("Не удалось получить токен")
+            send_telegram_message("❗️ <b>Ошибка: не удалось получить токен</b>")
             return
 
         # Если LOCK_ID не задан, пробуем его получить
         if not LOCK_ID:
             logger.error("LOCK_ID не задан")
+            send_telegram_message("❗️ <b>Ошибка: LOCK_ID не задан</b>")
             return
 
         # Пробуем открыть замок с повторными попытками
         max_retries = 3
         retry_count = 0
         success = False
-        
+
         while retry_count < max_retries and not success:
             retry_count += 1
             result = ttlock_api.unlock_lock(token, LOCK_ID, logger)
-            
+
             if result.get("errcode") == 0:
                 success = True
                 logger.info("Замок успешно открыт")
+                send_telegram_message("✅ <b>Замок успешно открыт</b>")
                 break
             elif result.get("errcode") == -3037:  # Замок занят
                 if retry_count < max_retries:
                     wait_time = 30 if retry_count == 1 else 60  # 30 сек после первой попытки, 1 мин после второй
                     logger.warning(f"Попытка {retry_count}: Замок занят, ожидаем {wait_time} секунд...")
+                    send_telegram_message(f"⚠️ <b>Попытка {retry_count}: Замок занят</b>\nОжидаем {wait_time} секунд...")
                     time.sleep(wait_time)
                 else:
                     logger.error("Не удалось открыть замок после 3 попыток")
+                    send_telegram_message("❗️ <b>Не удалось открыть замок после 3 попыток</b>")
                     # Смещаем время задачи на 15 минут позже
                     new_time = (datetime.strptime(open_time, "%H:%M") + timedelta(minutes=15)).strftime("%H:%M")
                     cfg["open_times"][current_day] = new_time
                     save_config(cfg)
                     logger.info(f"Время открытия смещено на {new_time}")
+                    send_telegram_message(f"ℹ️ <b>Время открытия смещено на {new_time}</b>")
             else:
-                logger.error(f"Ошибка открытия замка: {result.get('errmsg', 'Неизвестная ошибка')}")
+                error_msg = result.get('errmsg', 'Неизвестная ошибка')
+                logger.error(f"Ошибка открытия замка: {error_msg}")
+                send_telegram_message(f"❗️ <b>Ошибка открытия замка:</b>\n{error_msg}")
                 break
-                
+
         if not success:
             logger.error(f"Не удалось открыть замок после {retry_count} попыток")
+            send_telegram_message(f"❗️ <b>Не удалось открыть замок после {retry_count} попыток</b>")
     else:
         logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
 
