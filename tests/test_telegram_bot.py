@@ -109,6 +109,20 @@ def mock_restart_and_notify(mock_send_message: Tuple[AsyncMock, List[str]]) -> A
 
     return mock_restart
 
+@pytest.fixture(autouse=True)
+def mock_datetime(monkeypatch: Any) -> None:
+    """
+    Фикстура для мока работы с датой и временем.
+    """
+    class MockDateTime:
+        @staticmethod
+        def fromtimestamp(timestamp: float) -> Any:
+            mock = MagicMock()
+            mock.strftime.return_value = "2025-06-16 09:00:00"
+            return mock
+
+    monkeypatch.setattr('datetime.datetime', MockDateTime)
+
 def test_load_and_save_config(tmp_path: Any) -> None:
     """
     Тест загрузки и сохранения конфигурации.

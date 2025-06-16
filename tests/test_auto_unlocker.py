@@ -102,6 +102,9 @@ def mock_datetime():
     mock_dt = datetime(2025, 6, 16, 9, 0)  # Понедельник, 09:00
     with patch('ttlock_api.datetime') as mock_datetime:
         mock_datetime.now.return_value = mock_dt
+        mock_fromtimestamp = MagicMock()
+        mock_fromtimestamp.strftime.return_value = "2025-06-16 09:00:00"
+        mock_datetime.fromtimestamp.return_value = mock_fromtimestamp
         yield mock_datetime
 
 def test_load_config_default():
