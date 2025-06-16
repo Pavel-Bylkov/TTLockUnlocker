@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock, call, mock_open
 import schedule
 import pytz
+from datetime import tzinfo
 
 @pytest.fixture(autouse=True)
 def setup_env():
@@ -70,9 +71,18 @@ def mock_timezone():
     """
     Фикстура для мока часового пояса.
     """
-    class MockTimezone:
+    class MockTimezone(tzinfo):
         def __init__(self, *args, **kwargs):
             pass
+
+        def utcoffset(self, dt):
+            return timedelta(hours=7)  # Для Asia/Krasnoyarsk
+
+        def dst(self, dt):
+            return timedelta(0)
+
+        def tzname(self, dt):
+            return "Asia/Krasnoyarsk"
 
         def localize(self, dt):
             return dt
