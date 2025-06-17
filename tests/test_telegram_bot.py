@@ -397,7 +397,7 @@ async def test_settime_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> N
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.settime(update, context)
-        assert result == range(20, 21)  # SETTIME_DAY
+        assert result == telegram_bot.SETTIME_DAY
         assert any("выберите день недели" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
@@ -414,7 +414,7 @@ async def test_setbreak_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.setbreak(update, context)
-        assert result == range(30, 31)  # SETBREAK_DAY
+        assert result == telegram_bot.SETBREAK_DAY
         assert any("выберите день недели" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
@@ -431,7 +431,7 @@ async def test_settimezone_flow(mock_send_message: Tuple[AsyncMock, List[str]], 
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send):
         result = await telegram_bot.settimezone(update, context)
-        assert result == range(10, 11)  # SETTIMEZONE_VALUE
+        assert result == telegram_bot.SETTIMEZONE_VALUE
         assert any("введите часовой пояс" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
 
