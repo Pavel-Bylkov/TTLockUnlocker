@@ -21,6 +21,7 @@ import pytz
 import traceback
 from telegram_utils import send_telegram_message, is_authorized, log_exception
 import re
+from typing import Any
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
 ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
@@ -100,7 +101,7 @@ if missing_vars:
 def log_message(category: str, message: str):
     """
     Унифицированная функция для логирования сообщений.
-    
+
     Args:
         category: Категория сообщения (ERROR, INFO, DEBUG)
         message: Текст сообщения
@@ -286,7 +287,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     enabled = cfg.get("schedule_enabled", True)
     open_times = cfg.get("open_times", {})
     breaks = cfg.get("breaks", {})
-    
+
     # Проверка статуса auto_unlocker
     try:
         client = docker.from_env()
@@ -303,7 +304,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log_message("ERROR", f"Ошибка получения статуса контейнера: {e}")
         status_str = ""
-    
+
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
@@ -312,14 +313,14 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
         msg += f"{DAY_MAP_INV.get(day, day.title())}: {t if t else 'выключено'}\n"
-    
+
     # Только дни с перерывами
     breaks_with_values = {day: br for day, br in breaks.items() if br}
     if breaks_with_values:
         msg += "<b>Перерывы:</b>\n"
         for day, br in breaks_with_values.items():
             msg += f"{DAY_MAP_INV.get(day, day.title())}: {', '.join(br)}\n"
-    
+
     await send_message(update, msg)
 
 async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -453,31 +454,31 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if DEBUG:
         log_message("DEBUG", f"Пользователь вводит время: {update.message.text.strip()}")
     time_str = update.message.text.strip()
-    
+
     # Проверяем формат времени
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
         await send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
         return SET_TIME
-        
+
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
             await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return SET_TIME
-            
+
         cfg = load_config()
         if "open_times" not in cfg:
             cfg["open_times"] = {}
-            
+
         cfg["open_times"][context.user_data["day"]] = time_str
         save_config(cfg)
-        
+
         # Перезапуск auto_unlocker
         await restart_auto_unlocker_and_notify(
-            update, 
-            logger, 
-            f"Время открытия для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.", 
+            update,
+            logger,
+            f"Время открытия для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
@@ -507,17 +508,17 @@ async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if day not in DAYS:
         await send_message(update, "Некорректный день недели. Выберите из списка.")
         return SET_BREAK
-    
+
     context.user_data["day"] = day
     cfg = load_config()
     breaks = cfg.get("breaks", {}).get(day, [])
-    
+
     msg = f"Текущие перерывы для {DAY_MAP_INV.get(day, day.title())}:\n"
     if breaks:
         msg += "\n".join(breaks)
     else:
         msg += "Нет перерывов"
-    
+
     keyboard = [
         [InlineKeyboardButton("Добавить", callback_data="add_break")],
         [InlineKeyboardButton("Удалить", callback_data="remove_break")]
@@ -553,48 +554,48 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if DEBUG:
         log_message("DEBUG", f"Пользователь вводит перерыв: {update.message.text.strip()}")
     break_str = update.message.text.strip()
-    
+
     # Проверяем формат перерыва
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$', break_str):
         await send_message(update, "Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
         return SET_BREAK
-        
+
     try:
         # Проверяем валидность времени перерыва
         start_time, end_time = break_str.split('-')
         start_hour, start_minute = map(int, start_time.split(':'))
         end_hour, end_minute = map(int, end_time.split(':'))
-        
+
         if start_hour > 23 or start_minute > 59 or end_hour > 23 or end_minute > 59:
             await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return SET_BREAK
-            
+
         # Проверяем, что конец перерыва позже начала
         if (end_hour < start_hour) or (end_hour == start_hour and end_minute <= start_minute):
             await send_message(update, "Время окончания перерыва должно быть позже времени начала.")
             return SET_BREAK
-            
+
         cfg = load_config()
         if "breaks" not in cfg:
             cfg["breaks"] = {}
         if context.user_data["day"] not in cfg["breaks"]:
             cfg["breaks"][context.user_data["day"]] = []
-            
+
         # Проверяем на пересечение с существующими перерывами
         for existing_break in cfg["breaks"][context.user_data["day"]]:
             existing_start, existing_end = existing_break.split('-')
             if (start_time <= existing_end and end_time >= existing_start):
                 await send_message(update, "Этот перерыв пересекается с существующим. Выберите другое время.")
                 return SET_BREAK
-                
+
         cfg["breaks"][context.user_data["day"]].append(break_str)
         save_config(cfg)
-        
+
         # Перезапуск auto_unlocker
         await restart_auto_unlocker_and_notify(
-            update, 
-            logger, 
-            f"Добавлен перерыв {break_str} для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())}.<br>Auto_unlocker перезапущен, изменения применены.", 
+            update,
+            logger,
+            f"Добавлен перерыв {break_str} для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())}.<br>Auto_unlocker перезапущен, изменения применены.",
             "Перерыв добавлен, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
@@ -610,23 +611,23 @@ async def setbreak_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if DEBUG:
         log_message("DEBUG", f"Пользователь вводит перерыв для удаления: {update.message.text.strip()}")
     break_str = update.message.text.strip()
-    
+
     # Проверяем формат перерыва
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$', break_str):
         await send_message(update, "Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
         return SET_BREAK
-        
+
     try:
         cfg = load_config()
         if context.user_data["day"] in cfg.get("breaks", {}) and break_str in cfg["breaks"][context.user_data["day"]]:
             cfg["breaks"][context.user_data["day"]].remove(break_str)
             save_config(cfg)
-            
+
             # Перезапуск auto_unlocker
             await restart_auto_unlocker_and_notify(
-                update, 
-                logger, 
-                f"Удалён перерыв {break_str} для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())}.<br>Auto_unlocker перезапущен, изменения применены.", 
+                update,
+                logger,
+                f"Удалён перерыв {break_str} для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())}.<br>Auto_unlocker перезапущен, изменения применены.",
                 "Перерыв удалён, но не удалось перезапустить auto_unlocker"
             )
         else:
@@ -668,16 +669,29 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await send_message(update, menu_text)
 
-async def send_message(update: Update, text: str, parse_mode: str = "HTML", **kwargs):
+async def send_message(update: Update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> None:
     """
-    Отправляет сообщение пользователю.
+    Отправляет сообщение в Telegram с обработкой ошибок.
+
+    Args:
+        update: Объект Update
+        text: Текст сообщения
+        parse_mode: Режим форматирования (HTML или Markdown)
+        **kwargs: Дополнительные параметры
     """
     try:
+        # Заменяем <br> на \n
+        text = text.replace("<br>", "\n")
         log_message("DEBUG", f"Отправка сообщения пользователю {update.effective_chat.id}")
         await update.message.reply_text(text, parse_mode=parse_mode, **kwargs)
     except Exception as e:
         log_message("ERROR", f"Ошибка отправки сообщения: {e}")
-        log_exception(logger)
+        log_message("ERROR", traceback.format_exc())
+        # Пробуем отправить без форматирования
+        try:
+            await update.message.reply_text(text, parse_mode=None, **kwargs)
+        except Exception as e:
+            log_message("ERROR", f"Ошибка отправки сообщения без форматирования: {e}")
 
 def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     """
