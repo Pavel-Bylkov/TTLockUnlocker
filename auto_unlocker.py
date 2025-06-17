@@ -244,7 +244,18 @@ def job() -> None:
     # Получаем текущее время в нужном часовом поясе
     now = ttlock_api.get_now()
     current_time = now.strftime("%H:%M")
-    current_day = now.strftime("%A").lower()
+
+    # Преобразуем день недели в русский формат
+    day_mapping = {
+        "monday": "Пн",
+        "tuesday": "Вт",
+        "wednesday": "Ср",
+        "thursday": "Чт",
+        "friday": "Пт",
+        "saturday": "Сб",
+        "sunday": "Вс"
+    }
+    current_day = day_mapping.get(now.strftime("%A").lower())
 
     # Проверяем, нужно ли открывать замок
     cfg = load_config()
