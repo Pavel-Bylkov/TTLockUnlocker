@@ -251,9 +251,10 @@ def test_job_success(mock_timezone, mock_datetime):
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
-        # Устанавливаем текущее время как понедельник 09:00
-        mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        # Создаем мок-объект для datetime.now()
+        mock_now = MagicMock()
+        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
         mock_send.assert_called_once()
@@ -279,9 +280,10 @@ def test_job_with_retries(mock_timezone, mock_datetime):
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
-        # Устанавливаем текущее время как понедельник 09:00
-        mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        # Создаем мок-объект для datetime.now()
+        mock_now = MagicMock()
+        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
         assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
@@ -309,9 +311,10 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
         # Сбрасываем TIME_SHIFT перед тестом
         auto_unlocker.TIME_SHIFT = None
 
-        # Устанавливаем текущее время как понедельник 09:00
-        mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        # Создаем мок-объект для datetime.now()
+        mock_now = MagicMock()
+        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
         assert mock_send.call_count == 2  # Сообщение об ошибке + сообщение об успешном открытии
@@ -340,9 +343,10 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
         # Сбрасываем TIME_SHIFT перед тестом
         auto_unlocker.TIME_SHIFT = None
 
-        # Устанавливаем текущее время как понедельник 21:30
-        mock_datetime.now.return_value = datetime(2025, 6, 16, 21, 30)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime = lambda fmt: "21:30" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 21:30:00"
+        # Создаем мок-объект для datetime.now()
+        mock_now = MagicMock()
+        mock_now.strftime = lambda fmt: "21:30" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 21:30:00"
+        mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
         assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
@@ -366,9 +370,10 @@ def test_job_with_time_shift(mock_timezone, mock_datetime):
         # Устанавливаем смещение времени
         auto_unlocker.TIME_SHIFT = "09:15"
 
-        # Устанавливаем текущее время как понедельник 09:15
-        mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 15)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime = lambda fmt: "09:15" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:15:00"
+        # Создаем мок-объект для datetime.now()
+        mock_now = MagicMock()
+        mock_now.strftime = lambda fmt: "09:15" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:15:00"
+        mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
         assert mock_send.call_count == 1
