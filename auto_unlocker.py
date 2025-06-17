@@ -340,7 +340,13 @@ def main() -> None:
         print(msg)
         logger.info(msg)
         send_telegram_message(f"ℹ️ <b>{msg}</b>")
-        return
+        # Не завершаем программу, а просто не планируем задачи
+        while True:
+            time_module.sleep(60)  # Проверяем каждую минуту
+            config = load_config()  # Перечитываем конфигурацию
+            if config.get("schedule_enabled", True):
+                break  # Если расписание включено, выходим из цикла
+        # После выхода из цикла продолжаем настройку задач
 
     # Настраиваем задачи для каждого дня недели
     for day, time in config.get("open_times", {}).items():

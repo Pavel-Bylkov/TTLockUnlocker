@@ -9,6 +9,7 @@ services:
       - ./env/.env
     environment:
       - TZ=Asia/Novosibirsk
+      - CONFIG_PATH=/app/config.json
     volumes:
       - ./logs:/app/logs  # Логи на хосте
       - ./env/.env:/app/.env   # .env как bind-mount
@@ -29,6 +30,7 @@ services:
       - ./env/.env
     environment:
       - TZ=Asia/Novosibirsk
+      - CONFIG_PATH=/app/config.json
     depends_on:
       - auto_unlocker
     user: root
