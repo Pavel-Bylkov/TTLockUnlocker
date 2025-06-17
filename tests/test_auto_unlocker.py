@@ -253,7 +253,7 @@ def test_job_success(mock_timezone, mock_datetime):
 
         # Создаем мок-объект для datetime.now()
         mock_now = MagicMock()
-        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:00:00"
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
@@ -282,7 +282,7 @@ def test_job_with_retries(mock_timezone, mock_datetime):
 
         # Создаем мок-объект для datetime.now()
         mock_now = MagicMock()
-        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:00:00"
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
@@ -313,7 +313,7 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
 
         # Создаем мок-объект для datetime.now()
         mock_now = MagicMock()
-        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_now.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:00:00"
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
@@ -345,7 +345,7 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
 
         # Создаем мок-объект для datetime.now()
         mock_now = MagicMock()
-        mock_now.strftime = lambda fmt: "21:30" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 21:30:00"
+        mock_now.strftime = lambda fmt: "21:30" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 21:30:00"
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
@@ -372,7 +372,7 @@ def test_job_with_time_shift(mock_timezone, mock_datetime):
 
         # Создаем мок-объект для datetime.now()
         mock_now = MagicMock()
-        mock_now.strftime = lambda fmt: "09:15" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:15:00"
+        mock_now.strftime = lambda fmt: "09:15" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:15:00"
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
