@@ -54,6 +54,7 @@ CODEWORD = os.getenv('TELEGRAM_CODEWORD', 'secretword')
 AUTO_UNLOCKER_CONTAINER = os.getenv('AUTO_UNLOCKER_CONTAINER', 'auto_unlocker_1')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
+# Состояния для ConversationHandler
 ASK_CODEWORD = 0
 CONFIRM_CHANGE = 1
 SETTIME_DAY = 2
@@ -61,8 +62,9 @@ SETTIME_VALUE = 3
 SETBREAK_DAY = 4
 SETBREAK_ACTION = 5
 SETBREAK_ADD = 6
-SETTIMEZONE_VALUE = 7
-SETMAXRETRYTIME_VALUE = 8  # Новое состояние
+SETBREAK_DEL = 7
+SETTIMEZONE_VALUE = 8
+SETMAXRETRYTIME_VALUE = 9
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
@@ -73,14 +75,7 @@ TTLOCK_USERNAME = os.getenv("TTLOCK_USERNAME")
 TTLOCK_PASSWORD = os.getenv("TTLOCK_PASSWORD")
 TTLOCK_LOCK_ID = os.getenv("TTLOCK_LOCK_ID")
 
-SET_TIMEZONE = range(10, 11)
-
-SET_TIME = range(20, 21)
-SETTIME_DAY, SETTIME_VALUE = range(20, 22)
-SET_BREAK = range(30, 31)
 DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-
-SETBREAK_DAY, SETBREAK_ACTION, SETBREAK_ADD, SETBREAK_DEL = range(30, 34)
 
 REQUIRED_ENV_VARS = [
     'TELEGRAM_BOT_TOKEN',
@@ -407,7 +402,7 @@ async def settimezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_message(update, "Нет доступа.")
         return ConversationHandler.END
     await send_message(update, "Введите часовой пояс (например, Europe/Moscow):")
-    return SET_TIMEZONE
+    return SETTIMEZONE_VALUE
 
 async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -427,24 +422,35 @@ async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     except pytz.exceptions.UnknownTimeZoneError:
         await send_message(update, "Некорректный часовой пояс. Попробуйте ещё раз.")
-        return SET_TIMEZONE
+        return SETTIMEZONE_VALUE
     except Exception as e:
         log_message("ERROR", f"Ошибка при смене часового пояса: {e}")
         await send_message(update, f"Ошибка при смене часового пояса: {e}")
         return ConversationHandler.END
 
-async def settime(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def settime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Начинает процесс установки времени открытия.
+    Начало процесса настройки времени открытия.
     """
-    log_message("INFO", f"Получена команда /settime от chat_id={update.effective_chat.id}")
     if not is_authorized(update):
-        await send_message(update, "Нет доступа.")
+        await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
-    keyboard = [[InlineKeyboardButton(day, callback_data=f"settime_{day}")] for day in DAYS]
+
+    keyboard = [
+        [InlineKeyboardButton("Понедельник", callback_data="Пн")],
+        [InlineKeyboardButton("Вторник", callback_data="Вт")],
+        [InlineKeyboardButton("Среда", callback_data="Ср")],
+        [InlineKeyboardButton("Четверг", callback_data="Чт")],
+        [InlineKeyboardButton("Пятница", callback_data="Пт")],
+        [InlineKeyboardButton("Суббота", callback_data="Сб")],
+        [InlineKeyboardButton("Воскресенье", callback_data="Вс")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await send_message(update, "Выберите день недели:", reply_markup=reply_markup)
-    return SET_TIME
+    await update.message.reply_text(
+        "Выберите день недели для настройки времени открытия:",
+        reply_markup=reply_markup
+    )
+    return SETTIME_DAY  # Возвращаем константу состояния вместо range
 
 async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -457,14 +463,14 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем формат времени
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
         await send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
-        return SET_TIME
+        return SETTIME_VALUE
 
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
             await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
-            return SET_TIME
+            return SETTIME_VALUE
 
         cfg = load_config()
         if "open_times" not in cfg:
@@ -497,7 +503,7 @@ async def setbreak(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(day, callback_data=f"setbreak_{day}")] for day in DAYS]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await send_message(update, "Выберите день недели:", reply_markup=reply_markup)
-    return SET_BREAK
+    return SETBREAK_DAY
 
 async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -506,7 +512,7 @@ async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = update.message.text.strip()
     if day not in DAYS:
         await send_message(update, "Некорректный день недели. Выберите из списка.")
-        return SET_BREAK
+        return SETBREAK_DAY
 
     context.user_data["day"] = day
     cfg = load_config()
@@ -539,7 +545,7 @@ async def setbreak_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         breaks = cfg.get("breaks", {}).get(context.user_data["day"], [])
         if not breaks:
             await send_message(update, "Нет перерывов для удаления.")
-            return SET_BREAK
+            return SETBREAK_DAY
         await send_message(update, "Введите время перерыва для удаления в формате ЧЧ:ММ-ЧЧ:ММ:")
         return SETBREAK_DEL
     else:
@@ -557,7 +563,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем формат перерыва
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$', break_str):
         await send_message(update, "Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
-        return SET_BREAK
+        return SETBREAK_DAY
 
     try:
         # Проверяем валидность времени перерыва
@@ -567,12 +573,12 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if start_hour > 23 or start_minute > 59 or end_hour > 23 or end_minute > 59:
             await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
-            return SET_BREAK
+            return SETBREAK_DAY
 
         # Проверяем, что конец перерыва позже начала
         if (end_hour < start_hour) or (end_hour == start_hour and end_minute <= start_minute):
             await send_message(update, "Время окончания перерыва должно быть позже времени начала.")
-            return SET_BREAK
+            return SETBREAK_DAY
 
         cfg = load_config()
         if "breaks" not in cfg:
@@ -585,7 +591,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
             existing_start, existing_end = existing_break.split('-')
             if (start_time <= existing_end and end_time >= existing_start):
                 await send_message(update, "Этот перерыв пересекается с существующим. Выберите другое время.")
-                return SET_BREAK
+                return SETBREAK_DAY
 
         cfg["breaks"][context.user_data["day"]].append(break_str)
         save_config(cfg)
@@ -614,7 +620,7 @@ async def setbreak_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем формат перерыва
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$', break_str):
         await send_message(update, "Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
-        return SET_BREAK
+        return SETBREAK_DAY
 
     try:
         cfg = load_config()
@@ -830,7 +836,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
                 states={
-                    SET_TIMEZONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settimezone_apply)],
+                    SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settimezone_apply)],
                 },
                 fallbacks=[]
             ),
