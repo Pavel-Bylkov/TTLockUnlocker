@@ -943,7 +943,8 @@ def main():
                     SETTIME_DAY: [CallbackQueryHandler(handle_settime_callback)],
                     SETTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settime_value)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_message=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
@@ -953,7 +954,8 @@ def main():
                     SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_remove)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_message=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setmaxretrytime', setmaxretrytime)],
