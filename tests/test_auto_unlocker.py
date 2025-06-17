@@ -253,8 +253,7 @@ def test_job_success(mock_timezone, mock_datetime):
 
         # Устанавливаем текущее время как понедельник 09:00
         mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime.return_value = "09:00"  # Время
-        mock_datetime.now.return_value.strftime.side_effect = lambda fmt: "09:00" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_datetime.now.return_value.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
 
         auto_unlocker.job()
         mock_send.assert_called_once()
@@ -282,8 +281,7 @@ def test_job_with_retries(mock_timezone, mock_datetime):
 
         # Устанавливаем текущее время как понедельник 09:00
         mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime.return_value = "09:00"  # Время
-        mock_datetime.now.return_value.strftime.side_effect = lambda fmt: "09:00" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_datetime.now.return_value.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
 
         auto_unlocker.job()
         assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
@@ -313,8 +311,7 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
 
         # Устанавливаем текущее время как понедельник 09:00
         mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 0)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime.return_value = "09:00"  # Время
-        mock_datetime.now.return_value.strftime.side_effect = lambda fmt: "09:00" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:00:00"
+        mock_datetime.now.return_value.strftime = lambda fmt: "09:00" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:00:00"
 
         auto_unlocker.job()
         assert mock_send.call_count == 2  # Сообщение об ошибке + сообщение об успешном открытии
@@ -345,8 +342,7 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
 
         # Устанавливаем текущее время как понедельник 21:30
         mock_datetime.now.return_value = datetime(2025, 6, 16, 21, 30)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime.return_value = "21:30"  # Время
-        mock_datetime.now.return_value.strftime.side_effect = lambda fmt: "21:30" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 21:30:00"
+        mock_datetime.now.return_value.strftime = lambda fmt: "21:30" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 21:30:00"
 
         auto_unlocker.job()
         assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
@@ -372,8 +368,7 @@ def test_job_with_time_shift(mock_timezone, mock_datetime):
 
         # Устанавливаем текущее время как понедельник 09:15
         mock_datetime.now.return_value = datetime(2025, 6, 16, 9, 15)  # 16 июня 2025 - понедельник
-        mock_datetime.now.return_value.strftime.return_value = "09:15"  # Время
-        mock_datetime.now.return_value.strftime.side_effect = lambda fmt: "09:15" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 09:15:00"
+        mock_datetime.now.return_value.strftime = lambda fmt: "09:15" if fmt == "%H:%M" else "Пн" if fmt == "%A" else "2025-06-16 09:15:00"
 
         auto_unlocker.job()
         assert mock_send.call_count == 1
