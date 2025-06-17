@@ -7,7 +7,7 @@ import os
 import json
 import types
 from unittest.mock import patch, MagicMock, AsyncMock, mock_open
-from telegram import Update, Message, Chat, User
+from telegram import Update, Message, Chat, User, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 from typing import Dict, List, Any, Optional, Tuple, Generator
 
@@ -18,13 +18,13 @@ def setup_env() -> Generator[None, None, None]:
     """
     # Сохраняем оригинальные значения
     original_values = {}
-    for key in ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_CODEWORD', 
+    for key in ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_CODEWORD',
                 'AUTO_UNLOCKER_CONTAINER', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET',
                 'TTLOCK_USERNAME', 'TTLOCK_PASSWORD', 'TTLOCK_LOCK_ID']:
         original_values[key] = os.environ.get(key)
         if key in os.environ:
             del os.environ[key]
-    
+
     # Устанавливаем тестовые значения
     os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
     os.environ['TELEGRAM_CHAT_ID'] = '123456'
@@ -34,9 +34,9 @@ def setup_env() -> Generator[None, None, None]:
     os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
     os.environ['TTLOCK_USERNAME'] = 'test_username'
     os.environ['TTLOCK_PASSWORD'] = 'test_password'
-    
+
     yield
-    
+
     # Восстанавливаем оригинальные значения
     for key, value in original_values.items():
         if value is not None:
@@ -48,7 +48,7 @@ def setup_env() -> Generator[None, None, None]:
 def mock_update() -> MagicMock:
     """
     Фикстура для создания мока объекта Update.
-    
+
     Returns:
         MagicMock: Мок объекта Update
     """
@@ -64,7 +64,7 @@ def mock_update() -> MagicMock:
 def mock_context() -> MagicMock:
     """
     Фикстура для создания мока объекта Context.
-    
+
     Returns:
         MagicMock: Мок объекта Context
     """
@@ -76,12 +76,12 @@ def mock_context() -> MagicMock:
 def mock_send_message() -> Tuple[AsyncMock, List[str]]:
     """
     Фикстура для перехвата отправки сообщений в тестах.
-    
+
     Returns:
         Tuple[AsyncMock, List[str]]: Кортеж из функции отправки и списка отправленных сообщений
     """
     sent_messages = []
-    
+
     async def mock_send(*args: Any, **kwargs: Any) -> None:
         # Берем текст сообщения из первого позиционного аргумента или из kwargs
         text = args[0] if args else kwargs.get('text', '')
@@ -227,7 +227,9 @@ async def test_start() -> None:
     update = DummyUpdate()
     context = DummyContext()
     await telegram_bot.start(update, context)
-    assert any("Доступные команды" in r[0] for r in update.message.replies)
+    assert any("Выберите действие" in r[0] for r in update.message.replies)
+    # Проверяем, что в сообщении есть кнопки
+    assert any(isinstance(r[1].get('reply_markup'), ReplyKeyboardMarkup) for r in update.message.replies)
 
 @pytest.mark.asyncio
 async def test_setchat() -> None:
