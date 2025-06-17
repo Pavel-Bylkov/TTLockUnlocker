@@ -131,8 +131,10 @@ def load_config() -> Dict[str, Any]:
             log_message("DEBUG", f"Чтение конфигурации из {CONFIG_PATH}")
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
-            # Объединяем с дефолтными значениями
-            default.update(config)
+            # Обновляем только те значения, которые явно указаны в файле
+            for key, value in config.items():
+                if value is not None:  # Обновляем только если значение не None
+                    default[key] = value
             return default
     except Exception as e:
         log_message("ERROR", f"Ошибка чтения конфигурации: {e}")

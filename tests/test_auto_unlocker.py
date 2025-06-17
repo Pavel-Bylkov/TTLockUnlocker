@@ -110,12 +110,25 @@ def mock_datetime():
 def test_load_config_default():
     """
     Тест загрузки конфигурации по умолчанию.
+    Проверяет, что значения из файла конфигурации корректно загружаются.
     """
-    config = auto_unlocker.load_config()
-    assert config["timezone"] == "Asia/Krasnoyarsk"
-    assert config["schedule_enabled"] is True
-    assert "monday" in config["open_times"]
-    assert "monday" in config["breaks"]
+    # Тест с активным расписанием
+    with patch('builtins.open', mock_open(read_data='{"schedule_enabled": true}')):
+        config = auto_unlocker.load_config()
+        assert config["timezone"] == "Asia/Krasnoyarsk"
+        assert config["schedule_enabled"] is True
+
+    # Тест с неактивным расписанием
+    with patch('builtins.open', mock_open(read_data='{"schedule_enabled": false}')):
+        config = auto_unlocker.load_config()
+        assert config["timezone"] == "Asia/Krasnoyarsk"
+        assert config["schedule_enabled"] is False
+
+    # Тест с отсутствующим значением schedule_enabled
+    with patch('builtins.open', mock_open(read_data='{"timezone": "Europe/Moscow"}')):
+        config = auto_unlocker.load_config()
+        assert config["timezone"] == "Europe/Moscow"
+        assert config["schedule_enabled"] is True  # Должно быть True по умолчанию
 
 def test_load_config_from_file(mock_config):
     """
