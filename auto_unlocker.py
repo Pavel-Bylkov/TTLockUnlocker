@@ -108,22 +108,22 @@ def load_config() -> Dict[str, Any]:
         "schedule_enabled": True,
         "max_retry_time": "21:00",  # Максимальное время для попыток открытия
         "open_times": {
-            "monday": "09:00",
-            "tuesday": "09:00",
-            "wednesday": "09:00",
-            "thursday": "09:00",
-            "friday": "09:00",
-            "saturday": None,
-            "sunday": None
+            "Пн": "09:00",
+            "Вт": "09:00",
+            "Ср": "09:00",
+            "Чт": "09:00",
+            "Пт": "09:00",
+            "Сб": None,
+            "Вс": None
         },
         "breaks": {
-            "monday": [],
-            "tuesday": [],
-            "wednesday": [],
-            "thursday": [],
-            "friday": [],
-            "saturday": [],
-            "sunday": []
+            "Пн": [],
+            "Вт": [],
+            "Ср": [],
+            "Чт": [],
+            "Пт": [],
+            "Сб": [],
+            "Вс": []
         }
     }
     try:
@@ -356,13 +356,13 @@ def main() -> None:
             continue
 
         # Задача открытия
-        schedule.every().monday.at(time).do(job) if day == "monday" else None
-        schedule.every().tuesday.at(time).do(job) if day == "tuesday" else None
-        schedule.every().wednesday.at(time).do(job) if day == "wednesday" else None
-        schedule.every().thursday.at(time).do(job) if day == "thursday" else None
-        schedule.every().friday.at(time).do(job) if day == "friday" else None
-        schedule.every().saturday.at(time).do(job) if day == "saturday" else None
-        schedule.every().sunday.at(time).do(job) if day == "sunday" else None
+        schedule.every().monday.at(time).do(job) if day == "Пн" else None
+        schedule.every().tuesday.at(time).do(job) if day == "Вт" else None
+        schedule.every().wednesday.at(time).do(job) if day == "Ср" else None
+        schedule.every().thursday.at(time).do(job) if day == "Чт" else None
+        schedule.every().friday.at(time).do(job) if day == "Пт" else None
+        schedule.every().saturday.at(time).do(job) if day == "Сб" else None
+        schedule.every().sunday.at(time).do(job) if day == "Вс" else None
 
         # Задачи для перерывов
         breaks = config.get("breaks", {}).get(day, [])
@@ -384,22 +384,22 @@ def main() -> None:
                 return _open
 
             # Закрытие в начале перерыва
-            schedule.every().monday.at(start_time).do(make_close()) if day == "monday" else None
-            schedule.every().tuesday.at(start_time).do(make_close()) if day == "tuesday" else None
-            schedule.every().wednesday.at(start_time).do(make_close()) if day == "wednesday" else None
-            schedule.every().thursday.at(start_time).do(make_close()) if day == "thursday" else None
-            schedule.every().friday.at(start_time).do(make_close()) if day == "friday" else None
-            schedule.every().saturday.at(start_time).do(make_close()) if day == "saturday" else None
-            schedule.every().sunday.at(start_time).do(make_close()) if day == "sunday" else None
+            schedule.every().monday.at(start_time).do(make_close()) if day == "Пн" else None
+            schedule.every().tuesday.at(start_time).do(make_close()) if day == "Вт" else None
+            schedule.every().wednesday.at(start_time).do(make_close()) if day == "Ср" else None
+            schedule.every().thursday.at(start_time).do(make_close()) if day == "Чт" else None
+            schedule.every().friday.at(start_time).do(make_close()) if day == "Пт" else None
+            schedule.every().saturday.at(start_time).do(make_close()) if day == "Сб" else None
+            schedule.every().sunday.at(start_time).do(make_close()) if day == "Вс" else None
 
             # Открытие после перерыва
-            schedule.every().monday.at(end_time).do(make_reopen()) if day == "monday" else None
-            schedule.every().tuesday.at(end_time).do(make_reopen()) if day == "tuesday" else None
-            schedule.every().wednesday.at(end_time).do(make_reopen()) if day == "wednesday" else None
-            schedule.every().thursday.at(end_time).do(make_reopen()) if day == "thursday" else None
-            schedule.every().friday.at(end_time).do(make_reopen()) if day == "friday" else None
-            schedule.every().saturday.at(end_time).do(make_reopen()) if day == "saturday" else None
-            schedule.every().sunday.at(end_time).do(make_reopen()) if day == "sunday" else None
+            schedule.every().monday.at(end_time).do(make_reopen()) if day == "Пн" else None
+            schedule.every().tuesday.at(end_time).do(make_reopen()) if day == "Вт" else None
+            schedule.every().wednesday.at(end_time).do(make_reopen()) if day == "Ср" else None
+            schedule.every().thursday.at(end_time).do(make_reopen()) if day == "Чт" else None
+            schedule.every().friday.at(end_time).do(make_reopen()) if day == "Пт" else None
+            schedule.every().saturday.at(end_time).do(make_reopen()) if day == "Сб" else None
+            schedule.every().sunday.at(end_time).do(make_reopen()) if day == "Вс" else None
 
     msg = "Планировщик запущен и ожидает задач."
     print(msg)

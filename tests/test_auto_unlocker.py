@@ -47,22 +47,22 @@ def mock_config():
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
         "open_times": {
-            "monday": "09:00",
-            "tuesday": "09:00",
-            "wednesday": "09:00",
-            "thursday": "09:00",
-            "friday": "09:00",
-            "saturday": None,
-            "sunday": None
+            "Пн": "09:00",
+            "Вт": "09:00",
+            "Ср": "09:00",
+            "Чт": "09:00",
+            "Пт": "09:00",
+            "Сб": None,
+            "Вс": None
         },
         "breaks": {
-            "monday": ["13:00-14:00"],
-            "tuesday": [],
-            "wednesday": [],
-            "thursday": [],
-            "friday": [],
-            "saturday": [],
-            "sunday": []
+            "Пн": ["13:00-14:00"],
+            "Вт": [],
+            "Ср": [],
+            "Чт": [],
+            "Пт": [],
+            "Сб": [],
+            "Вс": []
         }
     }
 
@@ -74,22 +74,22 @@ def mock_timezone():
     class MockTimezone(tzinfo):
         def __init__(self, *args, **kwargs):
             pass
-            
+
         def utcoffset(self, dt):
             return timedelta(hours=7)  # Для Asia/Krasnoyarsk
-            
+
         def dst(self, dt):
             return timedelta(0)
-            
+
         def tzname(self, dt):
             return "Asia/Krasnoyarsk"
-            
+
         def localize(self, dt):
             return dt
-            
+
         def normalize(self, dt):
             return dt
-            
+
     with patch('pytz.timezone') as mock_tz:
         mock_tz.return_value = MockTimezone()
         yield mock_tz
@@ -149,8 +149,8 @@ def test_load_config_file_not_found():
         config = auto_unlocker.load_config()
         assert config["timezone"] == "Asia/Krasnoyarsk"
         assert config["schedule_enabled"] is True
-        assert "monday" in config["open_times"]
-        assert "monday" in config["breaks"]
+        assert "Пн" in config["open_times"]
+        assert "Пн" in config["breaks"]
 
 def test_load_config_invalid_json():
     """
@@ -160,8 +160,8 @@ def test_load_config_invalid_json():
         config = auto_unlocker.load_config()
         assert config["timezone"] == "Asia/Krasnoyarsk"
         assert config["schedule_enabled"] is True
-        assert "monday" in config["open_times"]
-        assert "monday" in config["breaks"]
+        assert "Пн" in config["open_times"]
+        assert "Пн" in config["breaks"]
 
 def test_load_config_custom_values():
     """
@@ -170,15 +170,15 @@ def test_load_config_custom_values():
     custom_config = {
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": False,
-        "open_times": {"monday": "10:00"},
-        "breaks": {"monday": ["12:00-13:00"]}
+        "open_times": {"Пн": "10:00"},
+        "breaks": {"Пн": ["12:00-13:00"]}
     }
     with patch('builtins.open', mock_open(read_data=json.dumps(custom_config))):
         config = auto_unlocker.load_config()
         assert config["timezone"] == "Asia/Krasnoyarsk"
         assert config["schedule_enabled"] is False
-        assert config["open_times"]["monday"] == "10:00"
-        assert config["breaks"]["monday"] == ["12:00-13:00"]
+        assert config["open_times"]["Пн"] == "10:00"
+        assert config["breaks"]["Пн"] == ["12:00-13:00"]
 
 def test_send_telegram_message():
     with patch('requests.post') as mock_post:
@@ -243,8 +243,8 @@ def test_job_success(mock_timezone, mock_datetime):
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
-        "open_times": {"monday": "09:00"},
-        "breaks": {"monday": []}
+        "open_times": {"Пн": "09:00"},
+        "breaks": {"Пн": []}
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
          patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}), \
@@ -261,8 +261,8 @@ def test_job_with_retries(mock_timezone, mock_datetime):
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
-        "open_times": {"monday": "09:00"},
-        "breaks": {"monday": []},
+        "open_times": {"Пн": "09:00"},
+        "breaks": {"Пн": []},
         "max_retry_time": "21:00"
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
@@ -288,8 +288,8 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
-        "open_times": {"monday": "09:00"},
-        "breaks": {"monday": []},
+        "open_times": {"Пн": "09:00"},
+        "breaks": {"Пн": []},
         "max_retry_time": "21:00"
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
@@ -320,8 +320,8 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
-        "open_times": {"monday": "21:30"},  # Время после max_retry_time
-        "breaks": {"monday": []},
+        "open_times": {"Пн": "21:30"},  # Время после max_retry_time
+        "breaks": {"Пн": []},
         "max_retry_time": "21:00"
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
@@ -356,8 +356,8 @@ def test_job_with_time_shift(mock_timezone, mock_datetime):
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
-        "open_times": {"monday": "09:00"},
-        "breaks": {"monday": []},
+        "open_times": {"Пн": "09:00"},
+        "breaks": {"Пн": []},
         "max_retry_time": "21:00"
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \

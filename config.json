@@ -3,21 +3,21 @@
   "schedule_enabled": true,
   "max_retry_time": "21:00",
   "open_times": {
-    "monday": "09:01",
-    "tuesday": "09:01",
-    "wednesday": "09:01",
-    "thursday": "09:01",
-    "friday": "09:01",
-    "saturday": "09:01",
-    "sunday": "09:01"
+    "Пн": "09:01",
+    "Вт": "09:01",
+    "Ср": "09:01",
+    "Чт": "09:01",
+    "Пт": "09:01",
+    "Сб": "09:01",
+    "Вс": "09:01"
   },
   "breaks": {
-    "monday": [],
-    "tuesday": [],
-    "wednesday": [],
-    "thursday": [],
-    "friday": [],
-    "saturday": [],
-    "sunday": []
+    "Пн": [],
+    "Вт": [],
+    "Ср": [],
+    "Чт": [],
+    "Пт": [],
+    "Сб": [],
+    "Вс": []
   }
 } 

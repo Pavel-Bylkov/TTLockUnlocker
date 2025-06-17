@@ -78,10 +78,7 @@ SET_TIMEZONE = range(10, 11)
 SET_TIME = range(20, 21)
 SETTIME_DAY, SETTIME_VALUE = range(20, 22)
 SET_BREAK = range(30, 31)
-DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-DAY_MAP = dict(zip(DAYS_RU, DAYS))
-DAY_MAP_INV = dict(zip(DAYS, DAYS_RU))
+DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 SETBREAK_DAY, SETBREAK_ACTION, SETBREAK_ADD, SETBREAK_DEL = range(30, 34)
 
@@ -134,6 +131,7 @@ def load_config():
                 config["open_times"] = {}
             if "breaks" not in config:
                 config["breaks"] = {}
+
             return config
     except Exception as e:
         log_message("ERROR", f"Ошибка чтения конфигурации: {e}")
@@ -152,6 +150,7 @@ def save_config(cfg):
     try:
         if DEBUG:
             log_message("DEBUG", f"Сохранение конфигурации в {CONFIG_PATH}")
+
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -312,14 +311,14 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += status_str + "\n"
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
-        msg += f"{DAY_MAP_INV.get(day, day.title())}: {t if t else 'выключено'}\n"
+        msg += f"{day}: {t if t else 'выключено'}\n"
 
     # Только дни с перерывами
     breaks_with_values = {day: br for day, br in breaks.items() if br}
     if breaks_with_values:
         msg += "<b>Перерывы:</b>\n"
         for day, br in breaks_with_values.items():
-            msg += f"{DAY_MAP_INV.get(day, day.title())}: {', '.join(br)}\n"
+            msg += f"{day}: {', '.join(br)}\n"
 
     await send_message(update, msg)
 
@@ -478,7 +477,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await restart_auto_unlocker_and_notify(
             update,
             logger,
-            f"Время открытия для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
+            f"Время открытия для {context.user_data['day']} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
@@ -513,7 +512,7 @@ async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg = load_config()
     breaks = cfg.get("breaks", {}).get(day, [])
 
-    msg = f"Текущие перерывы для {DAY_MAP_INV.get(day, day.title())}:\n"
+    msg = f"Текущие перерывы для {day}:\n"
     if breaks:
         msg += "\n".join(breaks)
     else:
@@ -595,7 +594,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await restart_auto_unlocker_and_notify(
             update,
             logger,
-            f"Добавлен перерыв {break_str} для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())}.<br>Auto_unlocker перезапущен, изменения применены.",
+            f"Добавлен перерыв {break_str} для {context.user_data['day']}.<br>Auto_unlocker перезапущен, изменения применены.",
             "Перерыв добавлен, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
@@ -627,7 +626,7 @@ async def setbreak_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await restart_auto_unlocker_and_notify(
                 update,
                 logger,
-                f"Удалён перерыв {break_str} для {DAY_MAP_INV.get(context.user_data['day'], context.user_data['day'].title())}.<br>Auto_unlocker перезапущен, изменения применены.",
+                f"Удалён перерыв {break_str} для {context.user_data['day']}.<br>Auto_unlocker перезапущен, изменения применены.",
                 "Перерыв удалён, но не удалось перезапустить auto_unlocker"
             )
         else:
@@ -700,13 +699,13 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     try:
         if not os.path.exists(log_path):
             return "Лог-файл не найден."
-            
+
         with open(log_path, "r", encoding="utf-8") as f:
             lines = f.readlines()[-10:]  # Берем последние 10 строк
-        
+
         # Фильтруем пустые строки и удаляем лишние пробелы
         non_empty_lines = [line.strip() for line in lines if line.strip()]
-        
+
         # Заменяем дни недели
         days_map = {
             "monday": "Понедельник",
@@ -717,14 +716,14 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
             "saturday": "Суббота",
             "sunday": "Воскресенье"
         }
-        
+
         # Применяем замену дней недели к каждой строке
         processed_lines = []
         for line in non_empty_lines:
             for en, ru in days_map.items():
                 line = line.replace(en, ru)
             processed_lines.append(line)
-        
+
         return f"<b>Последние логи сервиса:</b>\n<code>{chr(10).join(processed_lines)}</code>"
     except Exception as e:
         log_message("ERROR", f"Ошибка чтения логов: {e}")
@@ -738,7 +737,7 @@ async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
-    
+
     try:
         message = format_logs()
         await send_message(update, message)
@@ -752,7 +751,7 @@ async def setmaxretrytime(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """
     if not is_authorized(update):
         return ConversationHandler.END
-        
+
     await update.message.reply_text(
         "Введите максимальное время для попыток открытия замка в формате ЧЧ:ММ\n"
         "Например: 21:00\n"
@@ -766,9 +765,9 @@ async def setmaxretrytime_value(update: Update, context: ContextTypes.DEFAULT_TY
     """
     if not is_authorized(update):
         return ConversationHandler.END
-        
+
     time_str = update.message.text.strip()
-    
+
     # Проверяем формат времени
     try:
         datetime.strptime(time_str, "%H:%M")
@@ -777,16 +776,16 @@ async def setmaxretrytime_value(update: Update, context: ContextTypes.DEFAULT_TY
             "❌ Неверный формат времени. Используйте формат ЧЧ:ММ (например, 21:00)"
         )
         return SETMAXRETRYTIME_VALUE
-    
+
     # Загружаем текущую конфигурацию
     config = load_config()
-    
+
     # Обновляем время
     config["max_retry_time"] = time_str
-    
+
     # Сохраняем конфигурацию
     save_config(config)
-    
+
     # Перезапускаем сервис
     await restart_auto_unlocker_and_notify(
         update,
@@ -794,7 +793,7 @@ async def setmaxretrytime_value(update: Update, context: ContextTypes.DEFAULT_TY
         f"✅ Максимальное время для попыток открытия установлено на {time_str}",
         "❌ Ошибка при перезапуске сервиса"
     )
-    
+
     return ConversationHandler.END
 
 def main():
@@ -806,9 +805,9 @@ def main():
         if not BOT_TOKEN:
             log_message("ERROR", "TELEGRAM_BOT_TOKEN не задан в .env!")
             return
-            
+
         app = ApplicationBuilder().token(BOT_TOKEN).build()
-        
+
         # Регистрация обработчиков команд
         handlers = [
             CommandHandler('start', start),
@@ -861,10 +860,10 @@ def main():
                 fallbacks=[]
             )
         ]
-        
+
         for handler in handlers:
             app.add_handler(handler)
-            
+
         log_message("INFO", "Telegram-бот успешно запущен и готов к работе.")
         app.run_polling()
     except Exception as e:
@@ -873,4 +872,4 @@ def main():
         raise
 
 if __name__ == '__main__':
-    main() 
+    main()
