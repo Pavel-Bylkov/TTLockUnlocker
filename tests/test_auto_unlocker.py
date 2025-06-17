@@ -247,7 +247,7 @@ def test_job_success(mock_timezone, mock_datetime):
         "breaks": {"Пн": []}
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
-         patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}), \
+         patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}, side_effect=lambda *args, **kwargs: {"errcode": 0}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
@@ -270,7 +270,7 @@ def test_job_with_retries(mock_timezone, mock_datetime):
              {"errcode": 10003, "errmsg": "Lock is busy"},  # Первая попытка
              {"errcode": 10003, "errmsg": "Lock is busy"},  # Вторая попытка
              {"errcode": 10003, "errmsg": "Lock is busy"}   # Третья попытка
-         ]), \
+         ], return_value={"errcode": 10003, "errmsg": "Lock is busy"}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
@@ -296,7 +296,7 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
          patch('auto_unlocker.ttlock_api.unlock_lock', side_effect=[
              {"errcode": 10003, "errmsg": "Lock is busy"},  # Первая попытка
              {"errcode": 0}  # Успешная вторая попытка
-         ]), \
+         ], return_value={"errcode": 0}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
@@ -329,7 +329,7 @@ def test_job_with_max_retry_time(mock_timezone, mock_datetime):
              {"errcode": 10003, "errmsg": "Lock is busy"},  # Первая попытка
              {"errcode": 10003, "errmsg": "Lock is busy"},  # Вторая попытка
              {"errcode": 10003, "errmsg": "Lock is busy"}   # Третья попытка
-         ]), \
+         ], return_value={"errcode": 10003, "errmsg": "Lock is busy"}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
@@ -361,7 +361,7 @@ def test_job_with_time_shift(mock_timezone, mock_datetime):
         "max_retry_time": "21:00"
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
-         patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}), \
+         patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 0}, side_effect=lambda *args, **kwargs: {"errcode": 0}), \
          patch('auto_unlocker.send_telegram_message') as mock_send, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 

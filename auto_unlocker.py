@@ -294,7 +294,7 @@ def job() -> None:
 
         while retry_count < max_retries and not success:
             retry_count += 1
-            result = ttlock_api.unlock_lock(token, LOCK_ID, logger)
+            result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
 
             if result.get("errcode") == 0:
                 success = True
