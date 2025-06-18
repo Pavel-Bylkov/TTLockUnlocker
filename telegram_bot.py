@@ -494,7 +494,9 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if "open_times" not in cfg:
             cfg["open_times"] = {}
 
-        cfg["open_times"][context.user_data["day"]] = time_str
+        # Сохраняем день перед очисткой состояния
+        day = context.user_data["day"]
+        cfg["open_times"][day] = time_str
         save_config(cfg)
 
         # Очищаем состояние
@@ -505,7 +507,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await restart_auto_unlocker_and_notify(
             update,
             logger,
-            f"Время открытия для {context.user_data['day']} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
+            f"Время открытия для {day} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
     except Exception as e:
@@ -604,31 +606,31 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cfg = load_config()
         if "breaks" not in cfg:
             cfg["breaks"] = {}
-        if context.user_data["day"] not in cfg["breaks"]:
-            cfg["breaks"][context.user_data["day"]] = []
 
-        # Проверяем на пересечение с существующими перерывами
-        for existing_break in cfg["breaks"][context.user_data["day"]]:
-            existing_start, existing_end = existing_break.split('-')
-            if (start_time <= existing_end and end_time >= existing_start):
-                await send_message(update, "Этот перерыв пересекается с существующим. Выберите другое время.")
-                return SETBREAK_DAY
+        # Сохраняем день перед очисткой состояния
+        day = context.user_data["day"]
+        if day not in cfg["breaks"]:
+            cfg["breaks"][day] = []
 
-        cfg["breaks"][context.user_data["day"]].append(break_str)
+        cfg["breaks"][day].append(break_str)
         save_config(cfg)
+
+        # Очищаем состояние
+        context.user_data.pop("state", None)
+        context.user_data.pop("day", None)
 
         # Перезапуск auto_unlocker
         await restart_auto_unlocker_and_notify(
             update,
             logger,
-            f"Добавлен перерыв {break_str} для {context.user_data['day']}.<br>Auto_unlocker перезапущен, изменения применены.",
+            f"Добавлен перерыв {break_str} для {day}.<br>Auto_unlocker перезапущен, изменения применены.",
             "Перерыв добавлен, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
     except Exception as e:
         log_message("ERROR", f"Ошибка при добавлении перерыва: {e}")
         await send_message(update, f"Ошибка при добавлении перерыва: {e}")
-        return ConversationHandler.END
+        return SETBREAK_DAY
 
 async def setbreak_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
