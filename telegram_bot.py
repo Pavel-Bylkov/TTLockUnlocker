@@ -480,14 +480,14 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Проверяем формат времени
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
-        await send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
+        await update.message.reply_text("Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
         return
 
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
-            await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
+            await update.message.reply_text("Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return
 
         cfg = load_config()
@@ -512,7 +512,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         log_message("ERROR", f"Ошибка при установке времени: {e}")
-        await send_message(update, f"Ошибка при установке времени: {e}")
+        await update.message.reply_text(f"Ошибка при установке времени: {e}")
 
 async def setbreak(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -585,7 +585,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Проверяем формат перерыва
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$', break_str):
-        await send_message(update, "Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
+        await update.message.reply_text("Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
         return SETBREAK_DAY
 
     try:
@@ -595,12 +595,12 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_hour, end_minute = map(int, end_time.split(':'))
 
         if start_hour > 23 or start_minute > 59 or end_hour > 23 or end_minute > 59:
-            await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
+            await update.message.reply_text("Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return SETBREAK_DAY
 
         # Проверяем, что конец перерыва позже начала
         if (end_hour < start_hour) or (end_hour == start_hour and end_minute <= start_minute):
-            await send_message(update, "Время окончания перерыва должно быть позже времени начала.")
+            await update.message.reply_text("Время окончания перерыва должно быть позже времени начала.")
             return SETBREAK_DAY
 
         cfg = load_config()
@@ -629,7 +629,7 @@ async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     except Exception as e:
         log_message("ERROR", f"Ошибка при добавлении перерыва: {e}")
-        await send_message(update, f"Ошибка при добавлении перерыва: {e}")
+        await update.message.reply_text(f"Ошибка при добавлении перерыва: {e}")
         return SETBREAK_DAY
 
 async def setbreak_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
