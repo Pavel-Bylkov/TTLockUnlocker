@@ -452,7 +452,7 @@ async def settime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return SETTIME_DAY
 
-async def handle_settime_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_settime_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Обработчик нажатия на inline-кнопку выбора дня недели.
     """
@@ -467,7 +467,8 @@ async def handle_settime_callback(update: Update, context: ContextTypes.DEFAULT_
         text=f"Выбран день: {query.data}\nВведите время открытия в формате ЧЧ:ММ (например, 09:00):"
     )
 
-    return SETTIME_VALUE
+    # Устанавливаем состояние для следующего шага
+    context.user_data["state"] = SETTIME_VALUE
 
 async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -913,6 +914,10 @@ def main():
             CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd),
             # Добавляем обработчик для кнопок меню
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_button),
+            # Обработчики для inline-кнопок
+            CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$"),
+            CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_"),
+            CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$"),
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
@@ -931,22 +936,17 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settime', settime)],
                 states={
-                    SETTIME_DAY: [CallbackQueryHandler(handle_settime_callback)],
                     SETTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settime_value)],
                 },
-                fallbacks=[],
-                per_message=False
+                fallbacks=[]
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
                 states={
-                    SETBREAK_DAY: [CallbackQueryHandler(handle_setbreak_callback)],
-                    SETBREAK_ACTION: [CallbackQueryHandler(handle_setbreak_action)],
                     SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_remove)],
                 },
-                fallbacks=[],
-                per_message=False
+                fallbacks=[]
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setmaxretrytime', setmaxretrytime)],
