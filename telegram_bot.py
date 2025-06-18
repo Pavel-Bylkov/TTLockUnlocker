@@ -490,6 +490,9 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return
 
+        # Форматируем время в формат HH:MM
+        time_str = f"{hour:02d}:{minute:02d}"
+
         cfg = load_config()
         if "open_times" not in cfg:
             cfg["open_times"] = {}
