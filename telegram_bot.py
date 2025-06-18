@@ -687,7 +687,6 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = ReplyKeyboardMarkup(
         keyboard,
         resize_keyboard=True,
-        one_time_keyboard=True,
         input_field_placeholder="Выберите действие"
     )
 
@@ -703,12 +702,6 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     text = update.message.text
 
-    # Удаляем клавиатуру после выбора
-    await update.message.reply_text(
-        "Выполняю команду...",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
     # Обработка нажатий на кнопки
     if text == "📊 Статус":
         await status(update, context)
@@ -717,12 +710,12 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard = [
             ["✅ Включить расписание", "❌ Выключить расписание"],
             ["⏰ Настроить время", "🕒 Настроить перерывы"],
-            ["🌍 Настроить часовой пояс"]
+            ["🌍 Настроить часовой пояс"],
+            ["🔙 Назад"]
         ]
         reply_markup = ReplyKeyboardMarkup(
             keyboard,
-            resize_keyboard=True,
-            one_time_keyboard=True
+            resize_keyboard=True
         )
         await update.message.reply_text(
             "Выберите действие с расписанием:",
@@ -740,8 +733,7 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         ]
         reply_markup = ReplyKeyboardMarkup(
             keyboard,
-            resize_keyboard=True,
-            one_time_keyboard=True
+            resize_keyboard=True
         )
         await update.message.reply_text(
             "Выберите настройку:",
