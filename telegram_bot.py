@@ -522,52 +522,51 @@ async def setbreak(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_message(update, "Выберите день недели:", reply_markup=reply_markup)
     return SETBREAK_DAY
 
-async def setbreak_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_setbreak_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Обрабатывает выбор дня для настройки перерывов.
+    Обработчик нажатия на inline-кнопку выбора дня недели для перерывов.
     """
-    day = update.message.text.strip()
-    if day not in DAYS:
-        await send_message(update, "Некорректный день недели. Выберите из списка.")
-        return SETBREAK_DAY
+    query = update.callback_query
+    await query.answer()
 
-    context.user_data["day"] = day
-    cfg = load_config()
-    breaks = cfg.get("breaks", {}).get(day, [])
+    # Сохраняем выбранный день
+    context.user_data["day"] = query.data.replace("setbreak_", "")
 
-    msg = f"Текущие перерывы для {day}:\n"
-    if breaks:
-        msg += "\n".join(breaks)
-    else:
-        msg += "Нет перерывов"
+    # Удаляем inline-клавиатуру
+    await query.edit_message_text(
+        text=f"Выбран день: {context.user_data['day']}\nВыберите действие:",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("Добавить", callback_data="add_break")],
+            [InlineKeyboardButton("Удалить", callback_data="remove_break")]
+        ])
+    )
 
-    keyboard = [
-        [InlineKeyboardButton("Добавить", callback_data="add_break")],
-        [InlineKeyboardButton("Удалить", callback_data="remove_break")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await send_message(update, msg, reply_markup=reply_markup)
     return SETBREAK_ACTION
 
-async def setbreak_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_setbreak_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Обрабатывает выбор действия для перерывов (добавить/удалить).
+    Обработчик нажатия на inline-кнопку выбора действия для перерывов.
     """
-    action = update.message.text.strip().lower()
-    if action == "добавить":
-        await send_message(update, "Введите время перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00):")
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "add_break":
+        await query.edit_message_text(
+            text="Введите время перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00):"
+        )
         return SETBREAK_ADD
-    elif action == "удалить":
+    elif query.data == "remove_break":
         cfg = load_config()
         breaks = cfg.get("breaks", {}).get(context.user_data["day"], [])
         if not breaks:
-            await send_message(update, "Нет перерывов для удаления.")
-            return SETBREAK_DAY
-        await send_message(update, "Введите время перерыва для удаления в формате ЧЧ:ММ-ЧЧ:ММ:")
+            await query.edit_message_text(text="Нет перерывов для удаления.")
+            return ConversationHandler.END
+        await query.edit_message_text(
+            text="Введите время перерыва для удаления в формате ЧЧ:ММ-ЧЧ:ММ:"
+        )
         return SETBREAK_DEL
-    else:
-        await send_message(update, "Некорректное действие. Выберите 'Добавить' или 'Удалить'.")
-        return SETBREAK_ACTION
+
+    return ConversationHandler.END
 
 async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -944,18 +943,18 @@ def main():
                     SETTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settime_value)],
                 },
                 fallbacks=[],
-                per_message=True
+                per_message=False
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
                 states={
-                    SETBREAK_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_day)],
-                    SETBREAK_ACTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_action)],
+                    SETBREAK_DAY: [CallbackQueryHandler(handle_setbreak_callback)],
+                    SETBREAK_ACTION: [CallbackQueryHandler(handle_setbreak_action)],
                     SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_remove)],
                 },
                 fallbacks=[],
-                per_message=True
+                per_message=False
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setmaxretrytime', setmaxretrytime)],
