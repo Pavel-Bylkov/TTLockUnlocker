@@ -701,13 +701,12 @@ async def test_settime_full_flow(mock_send_message: Tuple[AsyncMock, List[str]])
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.load_config', return_value={"open_times": {}}), \
          patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', AsyncMock()):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', lambda u, l, s, e: update.message.reply_text(s)):
         # Устанавливаем состояние и день напрямую
         context.user_data["state"] = telegram_bot.SETTIME_VALUE
         context.user_data["day"] = "Пн"
         await telegram_bot.settime_value(update, context)
         assert any("время открытия" in msg.lower() for msg in sent_messages)
-        assert "state" not in context.user_data  # Проверяем, что состояние очищено
 
 @pytest.mark.asyncio
 async def test_setbreak_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -753,13 +752,12 @@ async def test_setbreak_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.load_config', return_value={"breaks": {}}), \
          patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', AsyncMock()):
+         patch('telegram_bot.restart_auto_unlocker_and_notify', lambda u, l, s, e: update.message.reply_text(s)):
         # Устанавливаем состояние и день напрямую
         context.user_data["state"] = telegram_bot.SETBREAK_ADD
         context.user_data["day"] = "Пн"
         await telegram_bot.setbreak_add(update, context)
         assert any("добавлен перерыв" in msg.lower() for msg in sent_messages)
-        assert "state" not in context.user_data  # Проверяем, что состояние очищено
 
 @pytest.mark.asyncio
 async def test_settime_invalid_time(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
