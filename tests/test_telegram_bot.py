@@ -647,15 +647,127 @@ async def test_setmaxretrytime_invalid_format(mock_send_message: Tuple[AsyncMock
 async def test_setmaxretrytime_unauthorized(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
     """
     Тест попытки настройки времени неавторизованным пользователем.
-    
+
     Args:
         mock_send_message: Фикстура для перехвата сообщений
     """
     mock_send, sent_messages = mock_send_message
     update = DummyUpdate()
     context = DummyContext()
-    
+
     with patch('telegram_bot.is_authorized', return_value=False):
         result = await telegram_bot.setmaxretrytime(update, context)
         assert result == telegram_bot.ConversationHandler.END
         assert not sent_messages  # Сообщения не должны отправляться
+
+@pytest.mark.asyncio
+async def test_settime_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
+    """
+    Тест полного цикла настройки времени открытия.
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate()
+    context = DummyContext()
+
+    # Начало настройки времени
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
+        result = await telegram_bot.settime(update, context)
+        assert any("выберите день недели" in msg.lower() for msg in sent_messages)
+
+    # Очищаем список сообщений
+    sent_messages.clear()
+
+    # Симулируем нажатие на inline-кнопку выбора дня
+    callback_update = MagicMock()
+    callback_update.callback_query = MagicMock()
+    callback_update.callback_query.data = "Пн"
+    callback_update.callback_query.edit_message_text = AsyncMock()
+
+    with patch('telegram_bot.is_authorized', return_value=True):
+        await telegram_bot.handle_settime_callback(callback_update, context)
+        assert context.user_data["state"] == telegram_bot.SETTIME_VALUE
+        assert context.user_data["day"] == "Пн"
+
+    # Очищаем список сообщений
+    sent_messages.clear()
+
+    # Ввод времени
+    update.message.text = "09:00"
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send), \
+         patch('telegram_bot.load_config', return_value={"open_times": {}}), \
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify', AsyncMock()):
+        await telegram_bot.handle_menu_button(update, context)
+        assert any("время открытия" in msg.lower() for msg in sent_messages)
+        assert "state" not in context.user_data  # Проверяем, что состояние очищено
+
+@pytest.mark.asyncio
+async def test_setbreak_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
+    """
+    Тест полного цикла настройки перерывов.
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate()
+    context = DummyContext()
+
+    # Начало настройки перерывов
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
+        result = await telegram_bot.setbreak(update, context)
+        assert any("выберите день недели" in msg.lower() for msg in sent_messages)
+
+    # Очищаем список сообщений
+    sent_messages.clear()
+
+    # Симулируем нажатие на inline-кнопку выбора дня
+    callback_update = MagicMock()
+    callback_update.callback_query = MagicMock()
+    callback_update.callback_query.data = "setbreak_Пн"
+    callback_update.callback_query.edit_message_text = AsyncMock()
+
+    with patch('telegram_bot.is_authorized', return_value=True):
+        await telegram_bot.handle_setbreak_callback(callback_update, context)
+        assert context.user_data["day"] == "Пн"
+
+    # Симулируем нажатие на кнопку добавления перерыва
+    callback_update.callback_query.data = "add_break"
+    with patch('telegram_bot.is_authorized', return_value=True):
+        await telegram_bot.handle_setbreak_action(callback_update, context)
+        assert context.user_data["state"] == telegram_bot.SETBREAK_ADD
+
+    # Очищаем список сообщений
+    sent_messages.clear()
+
+    # Ввод времени перерыва
+    update.message.text = "12:00-13:00"
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send), \
+         patch('telegram_bot.load_config', return_value={"breaks": {}}), \
+         patch('telegram_bot.save_config'), \
+         patch('telegram_bot.restart_auto_unlocker_and_notify', AsyncMock()):
+        await telegram_bot.handle_menu_button(update, context)
+        assert any("добавлен перерыв" in msg.lower() for msg in sent_messages)
+        assert "state" not in context.user_data  # Проверяем, что состояние очищено
+
+@pytest.mark.asyncio
+async def test_settime_invalid_time(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
+    """
+    Тест обработки некорректного времени.
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate()
+    context = DummyContext()
+
+    # Устанавливаем состояние и день
+    context.user_data["state"] = telegram_bot.SETTIME_VALUE
+    context.user_data["day"] = "Пн"
+
+    # Ввод некорректного времени
+    update.message.text = "25:00"
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
+        await telegram_bot.handle_menu_button(update, context)
+        assert any("некорректный формат времени" in msg.lower() for msg in sent_messages)
+        assert context.user_data["state"] == telegram_bot.SETTIME_VALUE  # Состояние не должно измениться

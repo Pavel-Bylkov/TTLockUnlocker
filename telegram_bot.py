@@ -481,14 +481,14 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем формат времени
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
         await send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
-        return SETTIME_VALUE
+        return
 
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
             await send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
-            return SETTIME_VALUE
+            return
 
         cfg = load_config()
         if "open_times" not in cfg:
@@ -497,6 +497,10 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cfg["open_times"][context.user_data["day"]] = time_str
         save_config(cfg)
 
+        # Очищаем состояние
+        context.user_data.pop("state", None)
+        context.user_data.pop("day", None)
+
         # Перезапуск auto_unlocker
         await restart_auto_unlocker_and_notify(
             update,
@@ -504,11 +508,9 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Время открытия для {context.user_data['day']} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
-        return ConversationHandler.END
     except Exception as e:
         log_message("ERROR", f"Ошибка при установке времени: {e}")
         await send_message(update, f"Ошибка при установке времени: {e}")
-        return ConversationHandler.END
 
 async def setbreak(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -702,6 +704,19 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Обработчик нажатий на кнопки меню.
     """
     text = update.message.text
+
+    # Проверяем, находимся ли мы в процессе настройки времени
+    if context.user_data.get("state") == SETTIME_VALUE:
+        await settime_value(update, context)
+        return
+
+    # Проверяем, находимся ли мы в процессе настройки перерывов
+    if context.user_data.get("state") in [SETBREAK_ADD, SETBREAK_DEL]:
+        if context.user_data["state"] == SETBREAK_ADD:
+            await setbreak_add(update, context)
+        else:
+            await setbreak_remove(update, context)
+        return
 
     # Обработка нажатий на кнопки
     if text == "📊 Статус":
