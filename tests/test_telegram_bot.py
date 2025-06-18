@@ -702,10 +702,7 @@ async def test_settime_full_flow(mock_send_message: Tuple[AsyncMock, List[str]])
          patch('telegram_bot.load_config', return_value={"open_times": {}}), \
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', AsyncMock()):
-        # Устанавливаем состояние и день вручную, так как они могли быть потеряны
-        context.user_data["state"] = telegram_bot.SETTIME_VALUE
-        context.user_data["day"] = "Пн"
-        await telegram_bot.handle_menu_button(update, context)
+        await telegram_bot.settime_value(update, context)
         assert any("время открытия" in msg.lower() for msg in sent_messages)
         assert "state" not in context.user_data  # Проверяем, что состояние очищено
 
@@ -754,10 +751,7 @@ async def test_setbreak_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]
          patch('telegram_bot.load_config', return_value={"breaks": {}}), \
          patch('telegram_bot.save_config'), \
          patch('telegram_bot.restart_auto_unlocker_and_notify', AsyncMock()):
-        # Устанавливаем состояние и день вручную, так как они могли быть потеряны
-        context.user_data["state"] = telegram_bot.SETBREAK_ADD
-        context.user_data["day"] = "Пн"
-        await telegram_bot.handle_menu_button(update, context)
+        await telegram_bot.setbreak_add(update, context)
         assert any("добавлен перерыв" in msg.lower() for msg in sent_messages)
         assert "state" not in context.user_data  # Проверяем, что состояние очищено
 

@@ -557,6 +557,7 @@ async def handle_setbreak_action(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(
             text="Введите время перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00):"
         )
+        context.user_data["state"] = SETBREAK_ADD
         return SETBREAK_ADD
     elif query.data == "remove_break":
         cfg = load_config()
@@ -567,6 +568,7 @@ async def handle_setbreak_action(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(
             text="Введите время перерыва для удаления в формате ЧЧ:ММ-ЧЧ:ММ:"
         )
+        context.user_data["state"] = SETBREAK_DEL
         return SETBREAK_DEL
 
     return ConversationHandler.END
