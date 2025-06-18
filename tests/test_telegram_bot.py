@@ -35,7 +35,9 @@ def setup_env() -> Generator[None, None, None]:
     os.environ['TTLOCK_USERNAME'] = 'test_username'
     os.environ['TTLOCK_PASSWORD'] = 'test_password'
 
-    yield
+    # Мокаем pytz для тестов
+    with patch('pytz.timezone', return_value=MagicMock()):
+        yield
 
     # Восстанавливаем оригинальные значения
     for key, value in original_values.items():
@@ -683,6 +685,7 @@ async def test_settime_full_flow(mock_send_message: Tuple[AsyncMock, List[str]])
     callback_update.callback_query = MagicMock()
     callback_update.callback_query.data = "Пн"
     callback_update.callback_query.edit_message_text = AsyncMock()
+    callback_update.callback_query.answer = AsyncMock()
 
     with patch('telegram_bot.is_authorized', return_value=True):
         await telegram_bot.handle_settime_callback(callback_update, context)
@@ -726,6 +729,7 @@ async def test_setbreak_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]
     callback_update.callback_query = MagicMock()
     callback_update.callback_query.data = "setbreak_Пн"
     callback_update.callback_query.edit_message_text = AsyncMock()
+    callback_update.callback_query.answer = AsyncMock()
 
     with patch('telegram_bot.is_authorized', return_value=True):
         await telegram_bot.handle_setbreak_callback(callback_update, context)
