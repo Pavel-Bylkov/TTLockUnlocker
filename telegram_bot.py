@@ -261,10 +261,10 @@ async def restart_auto_unlocker_and_notify(update, logger, message_success, mess
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
         container.restart()
-        await send_message(update, message_success)
+        await update.message.reply_text(message_success)
         log_message("INFO", "Сервис автооткрытия перезапущен после изменения конфигурации.")
     except Exception as e:
-        await send_message(update, f"{message_error}: {e}")
+        await update.message.reply_text(f"{message_error}: {e}")
         log_message("ERROR", f"Ошибка перезапуска сервиса автооткрытия: {e}")
         log_exception(logger)
 
