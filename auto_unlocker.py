@@ -18,6 +18,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import ttlock_api
 from typing import Optional, Dict, List, Any, Union
+import re
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
 ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
@@ -365,6 +366,18 @@ def main() -> None:
     for day, time in config.get("open_times", {}).items():
         if not time:
             continue
+        # Удаляем пробелы
+        time = str(time).strip()
+        # Отладочный вывод
+        print(f"[DEBUG] day={day}, time={time!r}")
+        logger.debug(f"day={day}, time={time!r}")
+        # Проверяем формат времени
+        if not re.match(r'^[0-2][0-9]:[0-5][0-9]$', time):
+            print(f"[ERROR] Некорректный формат времени для дня {day}: {time!r}")
+            logger.error(f"Некорректный формат времени для дня {day}: {time!r}")
+            continue
+        hour, minute = map(int, time.split(':'))
+        time = f"{hour:02d}:{minute:02d}"
 
         # Задача открытия
         schedule.every().monday.at(time).do(job) if day == "Пн" else None
@@ -379,6 +392,21 @@ def main() -> None:
         breaks = config.get("breaks", {}).get(day, [])
         for break_time in breaks:
             start_time, end_time = break_time.split("-")
+            # Удаляем пробелы
+            start_time = str(start_time).strip()
+            end_time = str(end_time).strip()
+            # Отладочный вывод
+            print(f"[DEBUG] break for {day}: start={start_time!r}, end={end_time!r}")
+            logger.debug(f"break for {day}: start={start_time!r}, end={end_time!r}")
+            # Проверяем формат времени
+            if not re.match(r'^[0-2][0-9]:[0-5][0-9]$', start_time) or not re.match(r'^[0-2][0-9]:[0-5][0-9]$', end_time):
+                print(f"[ERROR] Некорректный формат времени перерыва для дня {day}: {break_time!r}")
+                logger.error(f"Некорректный формат времени перерыва для дня {day}: {break_time!r}")
+                continue
+            start_hour, start_minute = map(int, start_time.split(':'))
+            end_hour, end_minute = map(int, end_time.split(':'))
+            start_time = f"{start_hour:02d}:{start_minute:02d}"
+            end_time = f"{end_hour:02d}:{end_minute:02d}"
 
             def make_close(day=day):
                 def _close():
