@@ -418,7 +418,7 @@ async def settimezone_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cfg["timezone"] = tz
         save_config(cfg)
         # Перезапуск auto_unlocker
-        await restart_auto_unlocker_and_notify(update, logger, f"Часовой пояс изменён на <code>{tz}</code>.<br>Auto_unlocker перезапущен, изменения применены.", "Часовой пояс изменён, но не удалось перезапустить auto_unlocker")
+        await restart_auto_unlocker_and_notify(update, logger, f"Часовой пояс изменён на {tz}. \nAuto_unlocker перезапущен, изменения применены.", "Часовой пояс изменён, но не удалось перезапустить auto_unlocker")
         return ConversationHandler.END
     except pytz.exceptions.UnknownTimeZoneError:
         await send_message(update, "Некорректный часовой пояс. Попробуйте ещё раз.")
@@ -510,7 +510,7 @@ async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await restart_auto_unlocker_and_notify(
             update,
             logger,
-            f"Время открытия для {day} установлено на <code>{time_str}</code>.<br>Auto_unlocker перезапущен, изменения применены.",
+            f"Время открытия для {day} установлено на {time_str}. \nAuto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
     except Exception as e:
