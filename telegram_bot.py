@@ -218,7 +218,8 @@ async def setchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id in blocked:
         await send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
         return ConversationHandler.END
-    await send_message(update, "Введите кодовое слово:")
+    # Скрываем меню при вводе кодового слова
+    await send_message(update, "Введите кодовое слово:", reply_markup=ReplyKeyboardRemove())
     return ASK_CODEWORD
 
 async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -238,7 +239,7 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     if update.message.text.strip() == CODEWORD:
         log_message("DEBUG", f"Кодовое слово верно. chat_id={update.message.chat_id}")
-        await send_message(update, "Кодовое слово верно! Подтвердите смену получателя (да/нет):")
+        await send_message(update, "Кодовое слово верно! Подтвердите смену получателя (да/нет):", reply_markup=ReplyKeyboardRemove())
         context.user_data['new_chat_id'] = update.message.chat_id
         # Сбросить счетчик попыток
         attempts.pop(chat_id, None)
@@ -254,7 +255,7 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log_message("INFO", f"chat_id={chat_id} заблокирован за 5 неверных попыток кодового слова (сохранено)")
             await send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
             return ConversationHandler.END
-        await send_message(update, f"Неверное кодовое слово. Осталось попыток: {5 - attempts[chat_id]}")
+        await send_message(update, f"Неверное кодовое слово. Осталось попыток: {5 - attempts[chat_id]}", reply_markup=ReplyKeyboardRemove())
         return ASK_CODEWORD
 
 async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -264,7 +265,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log_message("DEBUG", f"Вход в confirm_change, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     log_message("DEBUG", f"confirm_change: ответ пользователя '{update.message.text}'")
     if update.message.text.lower() == 'да':
-        await update.message.reply_text("✅ Кодовое слово верно. Начинаю смену получателя...")
+        await update.message.reply_text("✅ Кодовое слово верно. Начинаю смену получателя...", reply_markup=ReplyKeyboardRemove())
         new_chat_id = str(context.user_data['new_chat_id'])
         log_message("INFO", f"ПРОЦЕДУРА СМЕНЫ CHAT_ID: новый chat_id={new_chat_id}, ENV_PATH={ENV_PATH}")
         try:
@@ -301,11 +302,14 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_message(update, msg)
             return ConversationHandler.END
         # Пробуем перезапустить контейнер, если он есть
-        await update.message.reply_text("⚙️ Файл `.env` обновлён. Перезапускаю сервис...")
+        await update.message.reply_text("⚙️ Файл `.env` обновлён. Перезапускаю сервис...", reply_markup=ReplyKeyboardRemove())
         await restart_auto_unlocker_and_notify(update, logger, "Получатель уведомлений изменён, скрипт перезапущен.", "Ошибка перезапуска контейнера")
+        # После завершения возвращаем меню
+        await menu(update, context)
         return ConversationHandler.END
     else:
         await send_message(update, "Операция отменена.")
+        await menu(update, context)
         return ConversationHandler.END
 
 async def restart_auto_unlocker_and_notify(update, logger, message_success, message_error):
