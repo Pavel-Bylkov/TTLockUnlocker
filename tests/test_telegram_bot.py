@@ -323,10 +323,10 @@ async def test_open_close_lock(mock_send_message: Tuple[AsyncMock, List[str]]) -
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
-         patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True, 'errcode': 0}):
+         patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True, 'errcode': 0, 'attempt': 1}):
         await telegram_bot.close_lock(update, context)
         assert any("закрыт" in msg.lower() for msg in sent_messages)
-        assert len(sent_messages) == 1
+        assert len(sent_messages) == 2
 
 @pytest.mark.asyncio
 async def test_setchat_command(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
