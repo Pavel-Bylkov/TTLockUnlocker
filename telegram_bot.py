@@ -5,7 +5,7 @@ Telegram-бот для управления рассылкой уведомле�
 Для отладки можно установить переменную окружения DEBUG=1 (или true/True) — тогда будет подробный вывод в консоль.
 """
 import logging
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
 import os
 import docker
@@ -731,120 +731,27 @@ async def restart_auto_unlocker_cmd(update: Update, context: ContextTypes.DEFAUL
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Выводит список всех доступных команд в виде кнопок.
+    Выводит список всех доступных команд в виде кнопок-команд.
     """
     log_message("INFO", f"Получена команда /menu от chat_id={update.effective_chat.id}")
-
-    # Создаем клавиатуру с кнопками
-    keyboard = [
-        ["📊 Статус", "📅 Расписание"],
-        ["🔓 Открыть", "🔒 Закрыть"],
-        ["⚙️ Настройки", "📝 Логи"],
-        ["🔄 Перезапуск"]
-    ]
-
-    # Создаем клавиатуру с постоянной кнопкой меню
     reply_markup = ReplyKeyboardMarkup(
-        keyboard,
+        MENU_COMMANDS,
         resize_keyboard=True,
         input_field_placeholder="Выберите действие"
     )
-
-    # Отправляем сообщение с кнопками
     await update.message.reply_text(
         "Выберите действие:",
         reply_markup=reply_markup
     )
 
-MENU_BUTTONS = [
-    "📊 Статус", "📅 Расписание", "🔓 Открыть", "🔒 Закрыть",
-    "⚙️ Настройки", "📝 Логи", "🔄 Перезапуск",
-    "✅ Включить расписание", "❌ Выключить расписание",
-    "⏰ Настроить время", "🕒 Настроить перерывы", "🌍 Настроить часовой пояс",
-    "👤 Сменить получателя", "✉️ Установить Email", "🧪 Тест Email", "🔙 Назад"
+MENU_COMMANDS = [
+    ["/status", "/logs"],
+    ["/open", "/close"],
+    ["/settime", "/setbreak"],
+    ["/setchat", "/setemail"],
+    ["/restart_auto_unlocker", "/test_email"],
+    ["/menu"]
 ]
-import re
-MENU_REGEX = "^(" + "|".join(re.escape(btn) for btn in MENU_BUTTONS) + ")$"
-
-async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик нажатий на кнопки меню.
-    """
-    log_message("DEBUG", f"Вход в handle_menu_button, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
-    text = update.message.text
-
-    # Проверяем, находимся ли мы в процессе настройки времени
-    if context.user_data.get("state") == SETTIME_VALUE:
-        await settime_value(update, context)
-        return
-
-    # Проверяем, находимся ли мы в процессе настройки перерывов
-    if context.user_data.get("state") in [SETBREAK_ADD, SETBREAK_DEL]:
-        if context.user_data["state"] == SETBREAK_ADD:
-            await setbreak_add(update, context)
-        else:
-            await setbreak_remove(update, context)
-        return
-
-    # Обработка нажатий на кнопки
-    if text == "📊 Статус":
-        await status(update, context)
-    elif text == "📅 Расписание":
-        # Показываем подменю расписания
-        keyboard = [
-            ["✅ Включить расписание", "❌ Выключить расписание"],
-            ["⏰ Настроить время", "🕒 Настроить перерывы"],
-            ["🌍 Настроить часовой пояс"],
-            ["🔙 Назад"]
-        ]
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
-        )
-        await update.message.reply_text(
-            "Выберите действие с расписанием:",
-            reply_markup=reply_markup
-        )
-    elif text == "🔓 Открыть":
-        await open_lock(update, context)
-    elif text == "🔒 Закрыть":
-        await close_lock(update, context)
-    elif text == "⚙️ Настройки":
-        # Показываем подменю настроек
-        keyboard = [
-            ["👤 Сменить получателя", "✉️ Установить Email"],
-            ["🧪 Тест Email", "🔙 Назад"]
-        ]
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
-        )
-        await update.message.reply_text(
-            "Выберите настройку:",
-            reply_markup=reply_markup
-        )
-    elif text == "📝 Логи":
-        await logs(update, context)
-    elif text == "🔄 Перезапуск":
-        await restart_auto_unlocker_cmd(update, context)
-    elif text == "✅ Включить расписание":
-        await enable_schedule(update, context)
-    elif text == "❌ Выключить расписание":
-        await disable_schedule(update, context)
-    elif text == "⏰ Настроить время":
-        await settime(update, context)
-    elif text == "🕒 Настроить перерывы":
-        await setbreak(update, context)
-    elif text == "🌍 Настроить часовой пояс":
-        await settimezone(update, context)
-    elif text == "👤 Сменить получателя":
-        await setchat(update, context)
-    elif text == "✉️ Установить Email":
-        await setemail(update, context)
-    elif text == "🧪 Тест Email":
-        await test_email(update, context)
-    elif text == "🔙 Назад":
-        await menu(update, context)
 
 async def send_message(update: Update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> None:
     """
@@ -1064,20 +971,14 @@ def main():
                 fallbacks=[],
                 per_chat=True
             ),
-            # Потом MessageHandler для меню
-            MessageHandler(filters.Regex(MENU_REGEX), handle_menu_button),
-            # Обработчики для inline-кнопок
+            # CallbackQueryHandler для inline-кнопок
             CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$"),
             CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_"),
             CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$"),
         ]
 
         for handler in handlers:
-            # Диагностика: временно убираем MessageHandler для меню
-            if isinstance(handler, MessageHandler) and handler.callback == handle_menu_button:
-                pass
-            else:
-                app.add_handler(handler)
+            app.add_handler(handler)
 
         # Возвращаем debug_log_message для диагностики
         async def debug_log_message(update, context):
