@@ -771,6 +771,16 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
+MENU_BUTTONS = [
+    "📊 Статус", "📅 Расписание", "🔓 Открыть", "🔒 Закрыть",
+    "⚙️ Настройки", "📝 Логи", "🔄 Перезапуск",
+    "✅ Включить расписание", "❌ Выключить расписание",
+    "⏰ Настроить время", "🕒 Настроить перерывы", "🌍 Настроить часовой пояс",
+    "👤 Сменить получателя", "✉️ Установить Email", "🧪 Тест Email", "🔙 Назад"
+]
+import re
+MENU_REGEX = "^(" + "|".join(re.escape(btn) for btn in MENU_BUTTONS) + ")$"
+
 async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработчик нажатий на кнопки меню.
@@ -1078,17 +1088,16 @@ def main():
         ]
 
         for handler in handlers:
-            # Диагностика: временно убираем MessageHandler для меню и debug_log_message
+            # Возвращаем MessageHandler для меню, но только с фильтром по кнопкам
             if isinstance(handler, MessageHandler) and handler.callback == handle_menu_button:
-                # app.add_handler(handler, group=1)  # <-- временно убрано
-                pass
+                app.add_handler(MessageHandler(filters.Regex(MENU_REGEX), handle_menu_button), group=1)
             else:
                 app.add_handler(handler)
 
-        # Диагностика: временно убираем debug_log_message
-        # async def debug_log_message(update, context):
-        #     log_message("DEBUG", f"Вход в debug_log_message, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
-        # app.add_handler(MessageHandler(filters.ALL, debug_log_message))
+        # Возвращаем debug_log_message для диагностики
+        async def debug_log_message(update, context):
+            log_message("DEBUG", f"Вход в debug_log_message, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
+        app.add_handler(MessageHandler(filters.ALL, debug_log_message))
 
         log_message("INFO", "Telegram-бот успешно запущен и готов к работе.")
         app.run_polling()
