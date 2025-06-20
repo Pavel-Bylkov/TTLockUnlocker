@@ -7,7 +7,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY auto_unlocker.py ./
 COPY ttlock_api.py ./
-RUN mkdir -p /app/logs && chown appuser:appuser /app/logs && chown appuser:appuser auto_unlocker.py || true
+COPY telegram_utils.py ./
+RUN mkdir -p /app/logs && chown appuser:appuser /app/logs && chown appuser:appuser auto_unlocker.py ttlock_api.py telegram_utils.py || true
 ENV TZ=Asia/Novosibirsk
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 USER appuser
