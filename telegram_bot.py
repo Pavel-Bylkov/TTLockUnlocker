@@ -1019,12 +1019,7 @@ def main():
             CommandHandler('close', close_lock),
             CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd),
             CommandHandler('test_email', test_email),
-            # Добавляем обработчик для кнопок меню
-            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_button),
-            # Обработчики для inline-кнопок
-            CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$"),
-            CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_"),
-            CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$"),
+            # Сначала все ConversationHandler
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
@@ -1061,7 +1056,13 @@ def main():
                     SETEMAIL_VALUE: [MessageHandler(filters.TEXT, setemail_value)],
                 },
                 fallbacks=[]
-            )
+            ),
+            # Потом MessageHandler для меню
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_button),
+            # Обработчики для inline-кнопок
+            CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$"),
+            CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_"),
+            CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$"),
         ]
 
         for handler in handlers:
