@@ -20,6 +20,7 @@ import ttlock_api
 from typing import Optional, Dict, List, Any, Union
 import re
 from telegram_utils import send_email_notification
+import sys
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
 ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
@@ -94,6 +95,10 @@ formatter = ttlock_api.TZFormatter('%(asctime)s %(levelname)s: %(message)s', '%Y
 handler.setFormatter(formatter)
 logger.handlers.clear()
 logger.addHandler(handler)
+# Дублируем логи в stdout для Docker
+console = logging.StreamHandler(sys.stdout)
+console.setFormatter(formatter)
+logger.addHandler(console)
 
 def log_message(category: str, message: str):
     """
@@ -369,6 +374,14 @@ def job() -> None:
     else:
         logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
 
+def log_heartbeat():
+    """
+    Логирует сообщение о том, что сервис работает.
+    """
+    next_run = schedule.next_run
+    next_run_time = next_run.strftime('%Y-%m-%d %H:%M:%S') if next_run else "Нет запланированных задач"
+    logger.info(f"Планировщик активен. Следующая задача в: {next_run_time}")
+
 def main() -> None:
     """
     Основная функция: настраивает и запускает планировщик задач.
@@ -469,6 +482,9 @@ def main() -> None:
             schedule.every().friday.at(end_time).do(make_reopen()) if day == "Пт" else None
             schedule.every().saturday.at(end_time).do(make_reopen()) if day == "Сб" else None
             schedule.every().sunday.at(end_time).do(make_reopen()) if day == "Вс" else None
+
+    # Добавляем задачу-"пульс"
+    schedule.every().hour.do(log_heartbeat)
 
     msg = "Планировщик запущен и ожидает задач."
     print(msg)
