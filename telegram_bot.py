@@ -197,6 +197,7 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Проверяет введённое кодовое слово. Если верно — предлагает подтвердить смену chat_id.
     """
+    log_message("DEBUG", f"[check_codeword] Вход. chat_id={update.effective_chat.id}, text='{update.message.text.strip()}'")
     log_message("DEBUG", f"check_codeword: введено '{update.message.text.strip()}', ожидается '{CODEWORD}'")
     if update.message.text.strip() == CODEWORD:
         log_message("DEBUG", f"Кодовое слово верно. chat_id={update.message.chat_id}")
@@ -212,6 +213,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Подтверждает смену chat_id, обновляет .env и перезапускает auto_unlocker (если возможно).
     """
+    log_message("DEBUG", f"[confirm_change] Вход. chat_id={update.effective_chat.id}, text='{update.message.text.strip()}'")
     log_message("DEBUG", f"confirm_change: ответ пользователя '{update.message.text}'")
     if update.message.text.lower() == 'да':
         await update.message.reply_text("✅ Кодовое слово верно. Начинаю смену получателя...")
