@@ -1078,15 +1078,17 @@ def main():
         ]
 
         for handler in handlers:
+            # Диагностика: временно убираем MessageHandler для меню и debug_log_message
             if isinstance(handler, MessageHandler) and handler.callback == handle_menu_button:
-                app.add_handler(handler, group=1)
+                # app.add_handler(handler, group=1)  # <-- временно убрано
+                pass
             else:
                 app.add_handler(handler)
 
-        # Глобальный debug MessageHandler для диагностики
-        async def debug_log_message(update, context):
-            log_message("DEBUG", f"Вход в debug_log_message, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
-        app.add_handler(MessageHandler(filters.ALL, debug_log_message))
+        # Диагностика: временно убираем debug_log_message
+        # async def debug_log_message(update, context):
+        #     log_message("DEBUG", f"Вход в debug_log_message, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
+        # app.add_handler(MessageHandler(filters.ALL, debug_log_message))
 
         log_message("INFO", "Telegram-бот успешно запущен и готов к работе.")
         app.run_polling()
