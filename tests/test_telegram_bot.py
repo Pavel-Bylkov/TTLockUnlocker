@@ -457,6 +457,10 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
     """
     Тест процесса настройки chat_id.
     """
+    # Сброс блокировок только в памяти (файл не трогаем)
+    if hasattr(telegram_bot, 'BLOCKED_CHAT_IDS'):
+        telegram_bot.BLOCKED_CHAT_IDS.clear()
+
     mock_send, sent_messages = mock_send_message
     update = DummyUpdate()
     context = DummyContext()
