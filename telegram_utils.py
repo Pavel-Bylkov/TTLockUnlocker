@@ -5,6 +5,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,59 @@ def send_telegram_message(token, chat_id, text, logger=None):
     except Exception as e:
         if logger:
             logger.warning(f"Ошибка отправки Telegram: {str(e)}\n{traceback.format_exc()}")
+
+
+def log_message(logger, level, message):
+    """
+    Унифицированная функция для логирования сообщений.
+    
+    Args:
+        logger: объект логгера
+        level: строка ('ERROR', 'INFO', 'DEBUG')
+        message: текст сообщения
+    """
+    if level == "ERROR":
+        print(f"[ERROR] {message}")
+        logger.error(message)
+    elif level == "INFO":
+        print(f"[INFO] {message}")
+        logger.info(message)
+    elif level == "DEBUG":
+        print(f"[DEBUG] {message}")
+        logger.debug(message)
+
+
+def load_config(config_path, logger=None, default=None):
+    """
+    Загружает конфиг из файла. Возвращает default при ошибке.
+    """
+    if default is None:
+        default = {}
+    try:
+        if logger:
+            log_message(logger, "DEBUG", f"Чтение конфигурации из {config_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            return config
+    except Exception as e:
+        if logger:
+            log_message(logger, "ERROR", f"Ошибка чтения конфигурации: {e}")
+        return default
+
+
+def save_config(config, config_path, logger=None):
+    """
+    Сохраняет конфиг в файл.
+    """
+    try:
+        if logger:
+            log_message(logger, "DEBUG", f"Сохранение конфигурации в {config_path}")
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        if logger:
+            log_message(logger, "ERROR", f"Ошибка сохранения конфигурации: {e}")
+        raise
 
 
 def is_authorized(update, authorized_chat_id):

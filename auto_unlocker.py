@@ -19,7 +19,7 @@ from logging.handlers import TimedRotatingFileHandler
 import ttlock_api
 from typing import Optional, Dict, List, Any, Union
 import re
-from telegram_utils import send_email_notification
+from telegram_utils import send_telegram_message, log_message, load_config, save_config, send_email_notification, log_exception
 import sys
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
@@ -100,101 +100,6 @@ console = logging.StreamHandler(sys.stdout)
 console.setFormatter(formatter)
 logger.addHandler(console)
 
-def log_message(category: str, message: str):
-    """
-    Унифицированная функция для логирования сообщений.
-    
-    Args:
-        category: Категория сообщения (ERROR, INFO, DEBUG)
-        message: Текст сообщения
-    """
-    if category == "ERROR":
-        print(f"[ERROR] {message}")
-        logger.error(message)
-    elif category == "INFO":
-        print(f"[INFO] {message}")
-        logger.info(message)
-    elif DEBUG and category == "DEBUG":
-        print(f"[DEBUG] {message}")
-        logger.debug(message)
-
-def load_config() -> Dict[str, Any]:
-    """
-    Загружает конфигурацию из файла.
-    """
-    default = {
-        "timezone": "Asia/Krasnoyarsk",  # Используем поддерживаемый часовой пояс
-        "schedule_enabled": True,
-        "max_retry_time": "21:00",  # Максимальное время для попыток открытия
-        "open_times": {
-            "Пн": "09:00",
-            "Вт": "09:00",
-            "Ср": "09:00",
-            "Чт": "09:00",
-            "Пт": "09:00",
-            "Сб": None,
-            "Вс": None
-        },
-        "breaks": {
-            "Пн": [],
-            "Вт": [],
-            "Ср": [],
-            "Чт": [],
-            "Пт": [],
-            "Сб": [],
-            "Вс": []
-        }
-    }
-    try:
-        if DEBUG:
-            log_message("DEBUG", f"Чтение конфигурации из {CONFIG_PATH}")
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            # Обновляем только те значения, которые явно указаны в файле
-            for key, value in config.items():
-                if value is not None:  # Обновляем только если значение не None
-                    default[key] = value
-            return default
-    except Exception as e:
-        log_message("ERROR", f"Ошибка чтения конфигурации: {e}")
-        return default
-
-def save_config(cfg: Dict[str, Any]) -> None:
-    """
-    Сохраняет конфигурацию в файл.
-    """
-    try:
-        log_message("DEBUG", f"Сохранение конфигурации в {CONFIG_PATH}")
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        log_message("ERROR", f"Ошибка сохранения конфигурации: {e}")
-        raise
-
-def send_telegram_message(text: str) -> None:
-    """
-    Отправляет сообщение в Telegram, если заданы токен и chat_id.
-    
-    Args:
-        text: Текст сообщения
-    """
-    if not telegram_token or not telegram_chat_id:
-        logger.warning("TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, Telegram-уведомление не отправлено.")
-        return
-        
-    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-    payload = {
-        "chat_id": telegram_chat_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-    try:
-        resp = requests.post(url, data=payload, timeout=10)
-        if resp.status_code != 200:
-            logger.warning(f"Ошибка отправки Telegram: {resp.text}")
-    except Exception as e:
-        logger.warning(f"Ошибка отправки Telegram: {str(e)}")
-
 def debug_request(name: str, url: str, data: Dict[str, Any], response: requests.Response) -> None:
     """
     Подробный отладочный вывод HTTP-запроса и ответа.
@@ -229,7 +134,7 @@ def resolve_lock_id(token: str) -> Optional[str]:
         if DEBUG:
             print(f"lock_id найден в .env: {lock_id_env}")
         logger.info(f"lock_id найден в .env: {lock_id_env}")
-        send_telegram_message(f"ℹ️ lock_id найден в .env: <code>{lock_id_env}</code>")
+        send_telegram_message(telegram_token, telegram_chat_id, f"ℹ️ lock_id найден в .env: <code>{lock_id_env}</code>", logger)
         return lock_id_env
         
     locks = ttlock_api.list_locks(token)
@@ -237,7 +142,7 @@ def resolve_lock_id(token: str) -> Optional[str]:
         msg = "Замки не найдены. Проверьте права доступа."
         print(msg)
         logger.error(msg)
-        send_telegram_message(f"❗️ <b>Ошибка: замки не найдены</b>")
+        send_telegram_message(telegram_token, telegram_chat_id, f"❗️ <b>Ошибка: замки не найдены</b>", logger)
         return None
         
     first_lock = locks[0]
@@ -245,7 +150,7 @@ def resolve_lock_id(token: str) -> Optional[str]:
     msg = f"lock_id выбран из списка: {lock_id}"
     print(msg)
     logger.info(msg)
-    send_telegram_message(f"ℹ️ lock_id выбран из списка: <code>{lock_id}</code>")
+    send_telegram_message(telegram_token, telegram_chat_id, f"ℹ️ lock_id выбран из списка: <code>{lock_id}</code>", logger)
     return lock_id
 
 def job() -> None:
@@ -275,7 +180,29 @@ def job() -> None:
     current_day = day_mapping.get(now.strftime("%A").lower())
     
     # Проверяем, нужно ли открывать замок
-    cfg = load_config()
+    cfg = load_config(CONFIG_PATH, logger, default={
+        "timezone": "Asia/Krasnoyarsk",  # Используем поддерживаемый часовой пояс
+        "schedule_enabled": True,
+        "max_retry_time": "21:00",  # Максимальное время для попыток открытия
+        "open_times": {
+            "Пн": "09:00",
+            "Вт": "09:00",
+            "Ср": "09:00",
+            "Чт": "09:00",
+            "Пт": "09:00",
+            "Сб": None,
+            "Вс": None
+        },
+        "breaks": {
+            "Пн": [],
+            "Вт": [],
+            "Ср": [],
+            "Чт": [],
+            "Пт": [],
+            "Сб": [],
+            "Вс": []
+        }
+    })
     if not cfg.get("schedule_enabled", True):
         logger.info("Расписание отключено")
         return
@@ -305,13 +232,13 @@ def job() -> None:
         token = ttlock_api.get_token(logger)
         if not token:
             logger.error("Не удалось получить токен")
-            send_telegram_message("❗️ <b>Ошибка: не удалось получить токен</b>")
+            send_telegram_message(telegram_token, telegram_chat_id, "❗️ <b>Ошибка: не удалось получить токен</b>", logger)
             return
         
         # Если LOCK_ID не задан, пробуем его получить
         if not LOCK_ID:
             logger.error("LOCK_ID не задан")
-            send_telegram_message("❗️ <b>Ошибка: LOCK_ID не задан</b>")
+            send_telegram_message(telegram_token, telegram_chat_id, "❗️ <b>Ошибка: LOCK_ID не задан</b>", logger)
             return
             
         # --- Новая логика повторных попыток ---
@@ -323,12 +250,12 @@ def job() -> None:
             nonlocal last_error
             result = ttlock_api.unlock_lock(token, LOCK_ID, logger)
             if result.get("errcode") == 0:
-                send_telegram_message(f"✅ <b>Замок успешно открыт (попытка {attempt_str})</b>")
+                send_telegram_message(telegram_token, telegram_chat_id, f"✅ <b>Замок успешно открыт (попытка {attempt_str})</b>", logger)
                 logger.info(f"Замок успешно открыт (попытка {attempt_str})")
                 return True
             else:
                 last_error = result.get('errmsg', 'Неизвестная ошибка')
-                send_telegram_message(f"⚠️ <b>Попытка {attempt_str}: ошибка</b>\n{last_error}")
+                send_telegram_message(telegram_token, telegram_chat_id, f"⚠️ <b>Попытка {attempt_str}: ошибка</b>\n{last_error}", logger)
                 logger.error(f"Попытка {attempt_str}: ошибка - {last_error}")
                 return False
 
@@ -339,7 +266,7 @@ def job() -> None:
         time_module.sleep(60)
         if try_unlock("3"): return
         
-        send_telegram_message("❗️ <b>Не удалось открыть замок после 3 быстрых попыток.</b>")
+        send_telegram_message(telegram_token, telegram_chat_id, "❗️ <b>Не удалось открыть замок после 3 быстрых попыток.</b>", logger)
 
         # Попытка через 5 минут
         logger.info("Ожидание 5 минут перед следующей попыткой...")
@@ -353,7 +280,7 @@ def job() -> None:
         
         # Отправка email после 5 неудачных попыток
         logger.error("Не удалось открыть замок после 5 попыток. Отправка email-уведомления.")
-        send_telegram_message("❗️ <b>Критическая ошибка: не удалось открыть замок после 5 попыток. Отправляю email.</b>")
+        send_telegram_message(telegram_token, telegram_chat_id, "❗️ <b>Критическая ошибка: не удалось открыть замок после 5 попыток. Отправляю email.</b>", logger)
         send_email_notification(
             subject=f"Критическая ошибка TTLock: Замок {LOCK_ID} не открывается",
             body=f"Замок с ID {LOCK_ID} не удалось открыть после 5 попыток.\nПоследняя ошибка: {last_error}"
@@ -369,7 +296,7 @@ def job() -> None:
         # Если все попытки исчерпаны
         final_error_msg = f"❗️❗️❗️ <b>ВСЕ 10 ПОПЫТОК ИСЧЕРПАНЫ. Замок не открыт.</b>\nПоследняя ошибка: {last_error}\nТребуется ручное вмешательство."
         logger.error(final_error_msg)
-        send_telegram_message(final_error_msg)
+        send_telegram_message(telegram_token, telegram_chat_id, final_error_msg, logger)
 
     else:
         logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
@@ -391,16 +318,60 @@ def main() -> None:
     # Сбрасываем смещение времени при старте
     TIME_SHIFT = None
     
-    config = load_config()
+    config = load_config(CONFIG_PATH, logger, default={
+        "timezone": "Asia/Krasnoyarsk",  # Используем поддерживаемый часовой пояс
+        "schedule_enabled": True,
+        "max_retry_time": "21:00",  # Максимальное время для попыток открытия
+        "open_times": {
+            "Пн": "09:00",
+            "Вт": "09:00",
+            "Ср": "09:00",
+            "Чт": "09:00",
+            "Пт": "09:00",
+            "Сб": None,
+            "Вс": None
+        },
+        "breaks": {
+            "Пн": [],
+            "Вт": [],
+            "Ср": [],
+            "Чт": [],
+            "Пт": [],
+            "Сб": [],
+            "Вс": []
+        }
+    })
     if not config.get("schedule_enabled", True):
         msg = "Расписание отключено в конфигурации."
         print(msg)
         logger.info(msg)
-        send_telegram_message(f"ℹ️ <b>{msg}</b>")
+        send_telegram_message(telegram_token, telegram_chat_id, f"ℹ️ <b>{msg}</b>", logger)
         # Не завершаем программу, а просто не планируем задачи
         while True:
             time_module.sleep(60)  # Проверяем каждую минуту
-            config = load_config()  # Перечитываем конфигурацию
+            config = load_config(CONFIG_PATH, logger, default={
+                "timezone": "Asia/Krasnoyarsk",  # Используем поддерживаемый часовой пояс
+                "schedule_enabled": True,
+                "max_retry_time": "21:00",  # Максимальное время для попыток открытия
+                "open_times": {
+                    "Пн": "09:00",
+                    "Вт": "09:00",
+                    "Ср": "09:00",
+                    "Чт": "09:00",
+                    "Пт": "09:00",
+                    "Сб": None,
+                    "Вс": None
+                },
+                "breaks": {
+                    "Пн": [],
+                    "Вт": [],
+                    "Ср": [],
+                    "Чт": [],
+                    "Пт": [],
+                    "Сб": [],
+                    "Вс": []
+                }
+            })
             if config.get("schedule_enabled", True):
                 break  # Если расписание включено, выходим из цикла
         # После выхода из цикла продолжаем настройку задач
@@ -489,7 +460,7 @@ def main() -> None:
     msg = "Планировщик запущен и ожидает задач."
     print(msg)
     logger.info(msg)
-    send_telegram_message(f"ℹ️ <b>{msg}</b>")
+    send_telegram_message(telegram_token, telegram_chat_id, f"ℹ️ <b>{msg}</b>", logger)
 
     while True:
         schedule.run_pending()
