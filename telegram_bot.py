@@ -1028,37 +1028,37 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
-                    ASK_CODEWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, check_codeword)],
-                    CONFIRM_CHANGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_change)],
+                    ASK_CODEWORD: [MessageHandler(filters.TEXT, check_codeword)],
+                    CONFIRM_CHANGE: [MessageHandler(filters.TEXT, confirm_change)],
                 },
                 fallbacks=[]
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
                 states={
-                    SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settimezone_apply)],
+                    SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT, settimezone_apply)],
                 },
                 fallbacks=[]
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('settime', settime)],
                 states={
-                    SETTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, settime_value)],
+                    SETTIME_VALUE: [MessageHandler(filters.TEXT, settime_value)],
                 },
                 fallbacks=[]
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
                 states={
-                    SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_add)],
-                    SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_remove)],
+                    SETBREAK_ADD: [MessageHandler(filters.TEXT, setbreak_add)],
+                    SETBREAK_DEL: [MessageHandler(filters.TEXT, setbreak_remove)],
                 },
                 fallbacks=[]
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setemail', setemail)],
                 states={
-                    SETEMAIL_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, setemail_value)],
+                    SETEMAIL_VALUE: [MessageHandler(filters.TEXT, setemail_value)],
                 },
                 fallbacks=[]
             )
@@ -1066,6 +1066,11 @@ def main():
 
         for handler in handlers:
             app.add_handler(handler)
+
+        # Глобальный debug MessageHandler для диагностики
+        async def debug_log_message(update, context):
+            log_message("DEBUG", f"[debug_log_message] chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
+        app.add_handler(MessageHandler(filters.ALL, debug_log_message))
 
         log_message("INFO", "Telegram-бот успешно запущен и готов к работе.")
         app.run_polling()
