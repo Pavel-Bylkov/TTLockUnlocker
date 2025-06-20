@@ -372,10 +372,18 @@ async def test_check_codeword_incorrect(mock_send_message: Tuple[AsyncMock, List
     context = DummyContext()
 
     with patch.object(update.message, 'reply_text', side_effect=mock_send):
+        # Первая попытка — возвращает ASK_CODEWORD
         result = await telegram_bot.check_codeword(update, context)
-        assert result == telegram_bot.ConversationHandler.END
-        assert any("неверное" in msg.lower() for msg in sent_messages)
+        assert result == telegram_bot.ASK_CODEWORD
+        assert any("неверное кодовое слово" in msg.lower() for msg in sent_messages)
         assert len(sent_messages) == 1
+
+        # 5-я попытка — возвращает END
+        for i in range(4):
+            sent_messages.clear()
+            result = await telegram_bot.check_codeword(update, context)
+        assert result == telegram_bot.ConversationHandler.END
+        assert any("исчерпали лимит" in msg.lower() for msg in sent_messages)
 
 @pytest.mark.asyncio
 async def test_confirm_change_no(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
