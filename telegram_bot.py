@@ -216,7 +216,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.lower() == 'да':
         await update.message.reply_text("✅ Кодовое слово верно. Начинаю смену получателя...")
         new_chat_id = str(context.user_data['new_chat_id'])
-        log_message("DEBUG", f"Начинаю запись chat_id={new_chat_id} в {ENV_PATH}")
+        log_message("INFO", f"ПРОЦЕДУРА СМЕНЫ CHAT_ID: новый chat_id={new_chat_id}, ENV_PATH={ENV_PATH}")
         try:
             with open(ENV_PATH, 'r') as f:
                 lines = f.readlines()
@@ -241,6 +241,10 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     log_message("DEBUG", f"Добавляю строку: TELEGRAM_CHAT_ID={new_chat_id}")
             log_message("DEBUG", "Запись в .env завершена")
             log_message("INFO", f"Chat ID изменён на {new_chat_id} в .env")
+            # Обновляем глобальную переменную AUTHORIZED_CHAT_ID
+            global AUTHORIZED_CHAT_ID
+            AUTHORIZED_CHAT_ID = new_chat_id
+            log_message("INFO", f"AUTHORIZED_CHAT_ID обновлён в памяти: {AUTHORIZED_CHAT_ID}")
         except Exception as e:
             msg = f"Не удалось записать .env: {e}"
             log_message("ERROR", msg)
