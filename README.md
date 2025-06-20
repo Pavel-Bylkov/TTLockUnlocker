@@ -173,10 +173,10 @@ make test
 ```
 или
 ```
-python -m pytest
+pytest
 ```
 Для получения отчета о покрытии тестами:
 ```
-python -m pytest --cov=.
+pytest --cov=.
 ```
 

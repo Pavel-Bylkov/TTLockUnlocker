@@ -37,4 +37,4 @@ fixperms:
 	chmod -R 755 env || true
 	chmod 666 config.json || true
 	touch blocked_chat_ids.json
-	chmod 666 blocked_chat_ids.json
+	chmod 666 blocked_chat_ids.json 

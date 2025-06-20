@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 def send_telegram_message(token, chat_id, text, logger=None):
     """
     Отправляет сообщение в Telegram.
-
+    
     Args:
         token: Токен бота
         chat_id: ID чата для отправки
@@ -36,11 +36,11 @@ def send_telegram_message(token, chat_id, text, logger=None):
 def is_authorized(update, authorized_chat_id):
     """
     Проверяет, авторизован ли пользователь.
-
+    
     Args:
         update: Объект обновления Telegram
         authorized_chat_id: Разрешенный ID чата
-
+    
     Returns:
         bool: True если пользователь авторизован, False в противном случае
     """
@@ -50,7 +50,7 @@ def is_authorized(update, authorized_chat_id):
 def log_exception(logger):
     """
     Логирует текущий стек вызовов.
-
+    
     Args:
         logger: Логгер для записи ошибки
     """
@@ -85,4 +85,4 @@ def send_email_notification(subject: str, body: str):
         return True
     except Exception as e:
         logger.error(f"Ошибка отправки email: {e}")
-        return False
+        return False 

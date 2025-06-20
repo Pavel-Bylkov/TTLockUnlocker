@@ -14,11 +14,10 @@ packaging==25.0
 pluggy==1.6.0
 Pygments==2.19.1
 pytest==8.4.0
-pytest-asyncio==1.0.0
 pytest-cov==6.1.1
 pytest-mock==3.14.1
 python-dotenv==1.0.1
-python-telegram-bot==20.7
+python-telegram-bot==13.15
 pytz==2024.1
 requests==2.31.0
 schedule==1.2.1

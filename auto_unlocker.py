@@ -103,7 +103,7 @@ logger.addHandler(console)
 def log_message(category: str, message: str):
     """
     Унифицированная функция для логирования сообщений.
-
+    
     Args:
         category: Категория сообщения (ERROR, INFO, DEBUG)
         message: Текст сообщения
@@ -174,14 +174,14 @@ def save_config(cfg: Dict[str, Any]) -> None:
 def send_telegram_message(text: str) -> None:
     """
     Отправляет сообщение в Telegram, если заданы токен и chat_id.
-
+    
     Args:
         text: Текст сообщения
     """
     if not telegram_token or not telegram_chat_id:
         logger.warning("TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, Telegram-уведомление не отправлено.")
         return
-
+        
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     payload = {
         "chat_id": telegram_chat_id,
@@ -198,7 +198,7 @@ def send_telegram_message(text: str) -> None:
 def debug_request(name: str, url: str, data: Dict[str, Any], response: requests.Response) -> None:
     """
     Подробный отладочный вывод HTTP-запроса и ответа.
-
+    
     Args:
         name: Название операции
         url: URL запроса
@@ -217,10 +217,10 @@ def debug_request(name: str, url: str, data: Dict[str, Any], response: requests.
 def resolve_lock_id(token: str) -> Optional[str]:
     """
     Пытается получить lock_id из .env, либо из первого замка в списке.
-
+    
     Args:
         token: access_token
-
+    
     Returns:
         str: lock_id или None в случае ошибки
     """
@@ -231,7 +231,7 @@ def resolve_lock_id(token: str) -> Optional[str]:
         logger.info(f"lock_id найден в .env: {lock_id_env}")
         send_telegram_message(f"ℹ️ lock_id найден в .env: <code>{lock_id_env}</code>")
         return lock_id_env
-
+        
     locks = ttlock_api.list_locks(token)
     if not locks:
         msg = "Замки не найдены. Проверьте права доступа."
@@ -239,7 +239,7 @@ def resolve_lock_id(token: str) -> Optional[str]:
         logger.error(msg)
         send_telegram_message(f"❗️ <b>Ошибка: замки не найдены</b>")
         return None
-
+        
     first_lock = locks[0]
     lock_id = first_lock.get('lockId')
     msg = f"lock_id выбран из списка: {lock_id}"
@@ -255,13 +255,13 @@ def job() -> None:
     """
     # Получаем LOCK_ID из переменных окружения
     LOCK_ID = os.getenv('TTLOCK_LOCK_ID')
-
+    
     logger.info("\n[%s] Запуск задачи открытия замка...", ttlock_api.get_now().strftime("%Y-%m-%d %H:%M:%S"))
-
+    
     # Получаем текущее время в нужном часовом поясе
     now = ttlock_api.get_now()
     current_time = now.strftime("%H:%M")
-
+    
     # Преобразуем день недели в русский формат
     day_mapping = {
         "monday": "Пн",
@@ -273,24 +273,24 @@ def job() -> None:
         "sunday": "Вс"
     }
     current_day = day_mapping.get(now.strftime("%A").lower())
-
+    
     # Проверяем, нужно ли открывать замок
     cfg = load_config()
     if not cfg.get("schedule_enabled", True):
         logger.info("Расписание отключено")
         return
-
+    
     # Проверяем время открытия
     open_time = cfg.get("open_times", {}).get(current_day)
     if not open_time:
         logger.info("Сегодня замок не открывается")
         return
-
+    
     # Если есть смещение времени, используем его
     if TIME_SHIFT:
         open_time = TIME_SHIFT
         logger.info(f"Используем смещенное время открытия: {open_time}")
-
+    
     # Проверяем, не перерыв ли сейчас
     breaks = cfg.get("breaks", {}).get(current_day, [])
     for break_time in breaks:
@@ -298,7 +298,7 @@ def job() -> None:
         if start <= current_time <= end:
             logger.info("Сейчас перерыв")
             return
-
+    
     # Если текущее время совпадает с временем открытия
     if current_time == open_time:
         # Получаем токен
@@ -307,15 +307,15 @@ def job() -> None:
             logger.error("Не удалось получить токен")
             send_telegram_message("❗️ <b>Ошибка: не удалось получить токен</b>")
             return
-
+        
         # Если LOCK_ID не задан, пробуем его получить
         if not LOCK_ID:
             logger.error("LOCK_ID не задан")
             send_telegram_message("❗️ <b>Ошибка: LOCK_ID не задан</b>")
             return
-
+            
         # --- Новая логика повторных попыток ---
-
+        
         last_error = ""
 
         def try_unlock(attempt_str: str) -> bool:
@@ -338,19 +338,19 @@ def job() -> None:
         if try_unlock("2"): return
         time_module.sleep(60)
         if try_unlock("3"): return
-
+        
         send_telegram_message("❗️ <b>Не удалось открыть замок после 3 быстрых попыток.</b>")
 
         # Попытка через 5 минут
         logger.info("Ожидание 5 минут перед следующей попыткой...")
         time_module.sleep(5 * 60)
         if try_unlock("4 (через 5 мин)"): return
-
+        
         # Попытка через 10 минут
         logger.info("Ожидание 10 минут перед следующей попыткой...")
         time_module.sleep(10 * 60)
         if try_unlock("5 (через 10 мин)"): return
-
+        
         # Отправка email после 5 неудачных попыток
         logger.error("Не удалось открыть замок после 5 попыток. Отправка email-уведомления.")
         send_telegram_message("❗️ <b>Критическая ошибка: не удалось открыть замок после 5 попыток. Отправляю email.</b>")
@@ -387,10 +387,10 @@ def main() -> None:
     Основная функция: настраивает и запускает планировщик задач.
     """
     global TIME_SHIFT
-
+    
     # Сбрасываем смещение времени при старте
     TIME_SHIFT = None
-
+    
     config = load_config()
     if not config.get("schedule_enabled", True):
         msg = "Расписание отключено в конфигурации."
@@ -421,7 +421,7 @@ def main() -> None:
             continue
         hour, minute = map(int, time.split(':'))
         time = f"{hour:02d}:{minute:02d}"
-
+            
         # Задача открытия
         schedule.every().monday.at(time).do(job) if day == "Пн" else None
         schedule.every().tuesday.at(time).do(job) if day == "Вт" else None
@@ -450,7 +450,7 @@ def main() -> None:
             end_hour, end_minute = map(int, end_time.split(':'))
             start_time = f"{start_hour:02d}:{start_minute:02d}"
             end_time = f"{end_hour:02d}:{end_minute:02d}"
-
+            
             def make_close(day=day):
                 def _close():
                     token = ttlock_api.get_token(logger)

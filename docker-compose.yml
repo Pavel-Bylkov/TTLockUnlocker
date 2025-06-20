@@ -42,4 +42,4 @@ services:
       - ./blocked_chat_ids.json:/app/blocked_chat_ids.json  # файл блокировок
 
 volumes:
-  shared_data:
+  shared_data: 
