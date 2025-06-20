@@ -1078,7 +1078,10 @@ def main():
         ]
 
         for handler in handlers:
-            app.add_handler(handler)
+            if isinstance(handler, MessageHandler) and handler.callback == handle_menu_button:
+                app.add_handler(handler, group=1)
+            else:
+                app.add_handler(handler)
 
         # Глобальный debug MessageHandler для диагностики
         async def debug_log_message(update, context):
