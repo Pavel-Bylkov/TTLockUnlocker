@@ -37,7 +37,7 @@ if DEBUG:
 # Настройка логирования
 os.makedirs('logs', exist_ok=True)
 logger = logging.getLogger("telegram_bot")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 handler = TimedRotatingFileHandler('logs/telegram_bot.log', when="midnight", backupCount=14, encoding="utf-8")
@@ -209,6 +209,7 @@ async def setchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Запрашивает у пользователя кодовое слово для смены chat_id.
     """
+    log_message("DEBUG", f"Вход в setchat, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     log_message("INFO", f"Получена команда /setchat от chat_id={update.effective_chat.id}")
     # Проверяем блокировку
     blocked = context.application.bot_data.get('blocked_chat_ids', set())
@@ -224,6 +225,7 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Проверяет введённое кодовое слово. Если верно — предлагает подтвердить смену chat_id.
     """
+    log_message("DEBUG", f"Вход в check_codeword, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     chat_id = update.effective_chat.id
     bot_data = context.application.bot_data
     blocked = bot_data.setdefault('blocked_chat_ids', set())
@@ -259,7 +261,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Подтверждает смену chat_id, обновляет .env и перезапускает auto_unlocker (если возможно).
     """
-    log_message("DEBUG", f"[confirm_change] Вход. chat_id={update.effective_chat.id}, text='{update.message.text.strip()}'")
+    log_message("DEBUG", f"Вход в confirm_change, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     log_message("DEBUG", f"confirm_change: ответ пользователя '{update.message.text}'")
     if update.message.text.lower() == 'да':
         await update.message.reply_text("✅ Кодовое слово верно. Начинаю смену получателя...")
@@ -769,6 +771,7 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     Обработчик нажатий на кнопки меню.
     """
+    log_message("DEBUG", f"Вход в handle_menu_button, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     text = update.message.text
 
     # Проверяем, находимся ли мы в процессе настройки времени
@@ -1070,7 +1073,7 @@ def main():
 
         # Глобальный debug MessageHandler для диагностики
         async def debug_log_message(update, context):
-            log_message("DEBUG", f"[debug_log_message] chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
+            log_message("DEBUG", f"Вход в debug_log_message, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
         app.add_handler(MessageHandler(filters.ALL, debug_log_message))
 
         log_message("INFO", "Telegram-бот успешно запущен и готов к работе.")
