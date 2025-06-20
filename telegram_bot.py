@@ -516,23 +516,17 @@ async def settime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return SETTIME_DAY
 
-async def handle_settime_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Обработчик нажатия на inline-кнопку выбора дня недели.
-    """
+async def handle_settime_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-
     # Сохраняем выбранный день
     context.user_data["day"] = query.data
-
     # Удаляем inline-клавиатуру
     await query.edit_message_text(
         text=f"Выбран день: {query.data}\nВведите время открытия в формате ЧЧ:ММ (например, 09:00):"
     )
-
-    # Устанавливаем состояние для следующего шага
-    context.user_data["state"] = SETTIME_VALUE
+    log_message("DEBUG", f"Переход в состояние SETTIME_VALUE для chat_id={update.effective_chat.id}")
+    return SETTIME_VALUE
 
 async def settime_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -595,15 +589,10 @@ async def setbreak(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SETBREAK_DAY
 
 async def handle_setbreak_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Обработчик нажатия на inline-кнопку выбора дня недели для перерывов.
-    """
     query = update.callback_query
     await query.answer()
-
     # Сохраняем выбранный день
     context.user_data["day"] = query.data.replace("setbreak_", "")
-
     # Удаляем inline-клавиатуру
     await query.edit_message_text(
         text=f"Выбран день: {context.user_data['day']}\nВыберите действие:",
@@ -612,21 +601,17 @@ async def handle_setbreak_callback(update: Update, context: ContextTypes.DEFAULT
             [InlineKeyboardButton("Удалить", callback_data="remove_break")]
         ])
     )
-
+    log_message("DEBUG", f"Переход в состояние SETBREAK_ACTION для chat_id={update.effective_chat.id}")
     return SETBREAK_ACTION
 
 async def handle_setbreak_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Обработчик нажатия на inline-кнопку выбора действия для перерывов.
-    """
     query = update.callback_query
     await query.answer()
-
     if query.data == "add_break":
         await query.edit_message_text(
             text="Введите время перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00):"
         )
-        context.user_data["state"] = SETBREAK_ADD
+        log_message("DEBUG", f"Переход в состояние SETBREAK_ADD для chat_id={update.effective_chat.id}")
         return SETBREAK_ADD
     elif query.data == "remove_break":
         cfg = load_config()
@@ -637,9 +622,8 @@ async def handle_setbreak_action(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(
             text="Введите время перерыва для удаления в формате ЧЧ:ММ-ЧЧ:ММ:"
         )
-        context.user_data["state"] = SETBREAK_DEL
+        log_message("DEBUG", f"Переход в состояние SETBREAK_DEL для chat_id={update.effective_chat.id}")
         return SETBREAK_DEL
-
     return ConversationHandler.END
 
 async def setbreak_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
