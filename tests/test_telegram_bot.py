@@ -209,7 +209,7 @@ class DummyUpdate:
     """
     Мок объекта Update для тестов.
     """
-    def __init__(self, text: Optional[str] = None, chat_id: int = 123) -> None:
+    def __init__(self, text: Optional[str] = None, chat_id: int = 12345) -> None:
         self.message = DummyMessage()
         self.message.text = text or ''
         self.effective_chat = types.SimpleNamespace(id=chat_id)
@@ -365,10 +365,25 @@ async def test_check_codeword_correct(mock_send_message: Tuple[AsyncMock, List[s
 @pytest.mark.asyncio
 async def test_check_codeword_incorrect(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
     """
-    Тест проверки неправильного кодового слова.
+    Тест проверки неправильного кодового слова и блокировки chat_id.
     """
+    import os, json
+    test_blocked_id = 99999
+    # Очистить блокировку для этого chat_id
+    if hasattr(telegram_bot, 'BLOCKED_CHAT_IDS'):
+        telegram_bot.BLOCKED_CHAT_IDS.discard(test_blocked_id)
+    try:
+        with open('blocked_chat_ids.json', 'r', encoding='utf-8') as f:
+            ids = set(json.load(f))
+        if test_blocked_id in ids:
+            ids.remove(test_blocked_id)
+            with open('blocked_chat_ids.json', 'w', encoding='utf-8') as f:
+                json.dump(list(ids), f)
+    except Exception:
+        pass
+
     mock_send, sent_messages = mock_send_message
-    update = DummyUpdate(text="wrong_codeword")
+    update = DummyUpdate(text="wrong_codeword", chat_id=test_blocked_id)
     context = DummyContext()
 
     with patch.object(update.message, 'reply_text', side_effect=mock_send):
@@ -384,6 +399,12 @@ async def test_check_codeword_incorrect(mock_send_message: Tuple[AsyncMock, List
             result = await telegram_bot.check_codeword(update, context)
         assert result == telegram_bot.ConversationHandler.END
         assert any("исчерпали лимит" in msg.lower() for msg in sent_messages)
+
+    # Проверить, что chat_id теперь в блокировке (и в файле, и в переменной)
+    assert test_blocked_id in telegram_bot.BLOCKED_CHAT_IDS
+    with open('blocked_chat_ids.json', 'r', encoding='utf-8') as f:
+        ids = set(json.load(f))
+    assert test_blocked_id in ids
 
 @pytest.mark.asyncio
 async def test_confirm_change_no(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
