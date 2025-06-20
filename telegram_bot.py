@@ -226,6 +226,7 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Проверяет введённое кодовое слово. Если верно — предлагает подтвердить смену chat_id.
     """
+    log_message("DEBUG", f"check_codeword вызван с update: {update}")
     log_message("DEBUG", f"Вход в check_codeword, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     chat_id = update.effective_chat.id
     bot_data = context.application.bot_data
@@ -1024,8 +1025,8 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
-                    ASK_CODEWORD: [MessageHandler(filters.TEXT, check_codeword)],
-                    CONFIRM_CHANGE: [MessageHandler(filters.TEXT, confirm_change)],
+                    ASK_CODEWORD: [MessageHandler(filters.ALL & filters.TEXT, check_codeword)],
+                    CONFIRM_CHANGE: [MessageHandler(filters.ALL & filters.TEXT, confirm_change)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1033,7 +1034,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
                 states={
-                    SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT, settimezone_apply)],
+                    SETTIMEZONE_VALUE: [MessageHandler(filters.ALL & filters.TEXT, settimezone_apply)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1041,7 +1042,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settime', settime)],
                 states={
-                    SETTIME_VALUE: [MessageHandler(filters.TEXT, settime_value)],
+                    SETTIME_VALUE: [MessageHandler(filters.ALL & filters.TEXT, settime_value)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1049,8 +1050,8 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
                 states={
-                    SETBREAK_ADD: [MessageHandler(filters.TEXT, setbreak_add)],
-                    SETBREAK_DEL: [MessageHandler(filters.TEXT, setbreak_remove)],
+                    SETBREAK_ADD: [MessageHandler(filters.ALL & filters.TEXT, setbreak_add)],
+                    SETBREAK_DEL: [MessageHandler(filters.ALL & filters.TEXT, setbreak_remove)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1058,7 +1059,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setemail', setemail)],
                 states={
-                    SETEMAIL_VALUE: [MessageHandler(filters.TEXT, setemail_value)],
+                    SETEMAIL_VALUE: [MessageHandler(filters.ALL & filters.TEXT, setemail_value)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1072,9 +1073,9 @@ def main():
         ]
 
         for handler in handlers:
-            # Возвращаем MessageHandler для меню, но только с фильтром по кнопкам
+            # Диагностика: временно убираем MessageHandler для меню
             if isinstance(handler, MessageHandler) and handler.callback == handle_menu_button:
-                app.add_handler(MessageHandler(filters.Regex(MENU_REGEX), handle_menu_button), group=1)
+                pass
             else:
                 app.add_handler(handler)
 
