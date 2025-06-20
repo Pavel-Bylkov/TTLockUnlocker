@@ -65,6 +65,7 @@ SETBREAK_ADD = 6
 SETBREAK_DEL = 7
 SETTIMEZONE_VALUE = 8
 SETMAXRETRYTIME_VALUE = 9
+SETEMAIL_VALUE = 10
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
@@ -752,6 +753,7 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Показываем подменю настроек
         keyboard = [
             ["👤 Сменить получателя", "⏰ Макс. время попыток"],
+            ["✉️ Установить Email"],
             ["🔙 Назад"]
         ]
         reply_markup = ReplyKeyboardMarkup(
@@ -780,6 +782,8 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await setchat(update, context)
     elif text == "⏰ Макс. время попыток":
         await setmaxretrytime(update, context)
+    elif text == "✉️ Установить Email":
+        await setemail(update, context)
     elif text == "🔙 Назад":
         await menu(update, context)
 
@@ -911,6 +915,59 @@ async def setmaxretrytime_value(update: Update, context: ContextTypes.DEFAULT_TY
 
     return ConversationHandler.END
 
+async def setemail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Начинает процесс установки email для уведомлений.
+    """
+    if not is_authorized(update):
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        "Введите email для получения уведомлений о критических ошибках:"
+    )
+    return SETEMAIL_VALUE
+
+async def setemail_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Сохраняет email в .env файл.
+    """
+    if not is_authorized(update):
+        return ConversationHandler.END
+
+    email = update.message.text.strip()
+
+    # Простая проверка формата email
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        await update.message.reply_text("Некорректный формат email. Попробуйте еще раз.")
+        return SETEMAIL_VALUE
+
+    log_message("DEBUG", f"Начинаю запись EMAIL_TO={email} в {ENV_PATH}")
+    try:
+        with open(ENV_PATH, 'r') as f:
+            lines = f.readlines()
+    except Exception as e:
+        await update.message.reply_text(f"Не удалось прочитать .env: {e}")
+        return ConversationHandler.END
+
+    with open(ENV_PATH, 'w') as f:
+        found = False
+        for line in lines:
+            if line.startswith('EMAIL_TO='):
+                f.write(f'EMAIL_TO={email}\n')
+                found = True
+            else:
+                f.write(line)
+        if not found:
+            f.write(f'EMAIL_TO={email}\n')
+
+    await restart_auto_unlocker_and_notify(
+        update,
+        logger,
+        f"Email для уведомлений установлен: {email}",
+        "Ошибка при перезапуске сервиса"
+    )
+    return ConversationHandler.END
+
 def main():
     """
     Точка входа: запускает Telegram-бота и обработчики команд.
@@ -974,6 +1031,13 @@ def main():
                 entry_points=[CommandHandler('setmaxretrytime', setmaxretrytime)],
                 states={
                     SETMAXRETRYTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, setmaxretrytime_value)],
+                },
+                fallbacks=[]
+            ),
+            ConversationHandler(
+                entry_points=[CommandHandler('setemail', setemail)],
+                states={
+                    SETEMAIL_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, setemail_value)],
                 },
                 fallbacks=[]
             )

@@ -19,6 +19,9 @@ from logging.handlers import TimedRotatingFileHandler
 import ttlock_api
 from typing import Optional, Dict, List, Any, Union
 import re
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
 ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
@@ -41,6 +44,13 @@ password = os.getenv("TTLOCK_PASSWORD")
 telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
+# Email-уведомления
+EMAIL_TO = os.getenv("EMAIL_TO")
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = os.getenv("SMTP_PORT")
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+
 REQUIRED_ENV_VARS = [
     'TTLOCK_CLIENT_ID',
     'TTLOCK_CLIENT_SECRET',
@@ -48,6 +58,11 @@ REQUIRED_ENV_VARS = [
     'TTLOCK_PASSWORD',
     'TELEGRAM_BOT_TOKEN',
     'TELEGRAM_CHAT_ID',
+    'EMAIL_TO',
+    'SMTP_SERVER',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASSWORD',
 ]
 
 missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
@@ -230,13 +245,33 @@ def resolve_lock_id(token: str) -> Optional[str]:
     send_telegram_message(f"ℹ️ lock_id выбран из списка: <code>{lock_id}</code>")
     return lock_id
 
+def send_email_notification(subject: str, body: str):
+    """
+    Отправляет email-уведомление.
+    """
+    if not all([EMAIL_TO, SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD]):
+        logger.warning("Параметры для отправки email не настроены. Уведомление не отправлено.")
+        return
+
+    msg = MIMEText(body, 'plain', 'utf-8')
+    msg['Subject'] = Header(subject, 'utf-8')
+    msg['From'] = SMTP_USER
+    msg['To'] = EMAIL_TO
+
+    try:
+        # Используем SMTP_SSL для безопасного соединения
+        with smtplib.SMTP_SSL(SMTP_SERVER, int(SMTP_PORT)) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, [EMAIL_TO], msg.as_string())
+        logger.info(f"Email-уведомление отправлено на {EMAIL_TO}.")
+    except Exception as e:
+        logger.error(f"Ошибка отправки email: {e}")
+
 def job() -> None:
     """
     Основная задача: проверяет время и открывает замок если нужно.
-    При неудаче делает повторные попытки с временным смещением.
+    При неудаче делает повторные попытки с новой логикой.
     """
-    global TIME_SHIFT
-
     # Получаем LOCK_ID из переменных окружения
     LOCK_ID = os.getenv('TTLOCK_LOCK_ID')
 
@@ -298,44 +333,63 @@ def job() -> None:
             send_telegram_message("❗️ <b>Ошибка: LOCK_ID не задан</b>")
             return
 
-        # Пробуем открыть замок с повторными попытками
-        max_retries = 3
-        retry_count = 0
-        success = False
-        max_retry_time = cfg.get("max_retry_time", "21:00")
+        # --- Новая логика повторных попыток ---
 
-        while retry_count < max_retries and not success:
-            retry_count += 1
-            result = ttlock_api.unlock_lock(token, LOCK_ID, logger, send_telegram_message)
+        last_error = ""
 
+        def try_unlock(attempt_str: str) -> bool:
+            """Вспомогательная функция для одной попытки открытия."""
+            nonlocal last_error
+            result = ttlock_api.unlock_lock(token, LOCK_ID, logger)
             if result.get("errcode") == 0:
-                success = True
-                logger.info("Замок успешно открыт")
-                send_telegram_message("✅ <b>Замок успешно открыт</b>")
-                break
+                send_telegram_message(f"✅ <b>Замок успешно открыт (попытка {attempt_str})</b>")
+                logger.info(f"Замок успешно открыт (попытка {attempt_str})")
+                return True
             else:
-                error_msg = result.get('errmsg', 'Неизвестная ошибка')
-                logger.error(f"Ошибка открытия замка: {error_msg}")
-                send_telegram_message(f"⚠️ <b>Попытка {retry_count}: Ошибка открытия замка</b>\n{error_msg}")
+                last_error = result.get('errmsg', 'Неизвестная ошибка')
+                send_telegram_message(f"⚠️ <b>Попытка {attempt_str}: ошибка</b>\n{last_error}")
+                logger.error(f"Попытка {attempt_str}: ошибка - {last_error}")
+                return False
 
-                if retry_count < max_retries:
-                    wait_time = 30 if retry_count == 1 else 60  # 30 сек после первой попытки, 1 мин после второй
-                    logger.warning(f"Ожидаем {wait_time} секунд...")
-                    time_module.sleep(wait_time)
-                else:
-                    logger.error("Не удалось открыть замок после 3 попыток")
-                    send_telegram_message("❗️ <b>Не удалось открыть замок после 3 попыток</b>")
+        # Первые 3 быстрые попытки
+        if try_unlock("1"): return
+        time_module.sleep(30)
+        if try_unlock("2"): return
+        time_module.sleep(60)
+        if try_unlock("3"): return
 
-                    # Проверяем, не превышено ли максимальное время для попыток
-                    if current_time < max_retry_time:
-                        # Смещаем время задачи на 15 минут позже
-                        new_time = (datetime.strptime(open_time, "%H:%M") + timedelta(minutes=15)).strftime("%H:%M")
-                        TIME_SHIFT = new_time
-                        logger.info(f"Время открытия смещено на {new_time}")
-                        send_telegram_message(f"ℹ️ <b>Время открытия смещено на {new_time}</b>")
-                    else:
-                        logger.error(f"Превышено максимальное время для попыток ({max_retry_time})")
-                        send_telegram_message(f"❗️ <b>Превышено максимальное время для попыток ({max_retry_time})</b>")
+        send_telegram_message("❗️ <b>Не удалось открыть замок после 3 быстрых попыток.</b>")
+
+        # Попытка через 5 минут
+        logger.info("Ожидание 5 минут перед следующей попыткой...")
+        time_module.sleep(5 * 60)
+        if try_unlock("4 (через 5 мин)"): return
+
+        # Попытка через 10 минут
+        logger.info("Ожидание 10 минут перед следующей попыткой...")
+        time_module.sleep(10 * 60)
+        if try_unlock("5 (через 10 мин)"): return
+
+        # Отправка email после 5 неудачных попыток
+        logger.error("Не удалось открыть замок после 5 попыток. Отправка email-уведомления.")
+        send_telegram_message("❗️ <b>Критическая ошибка: не удалось открыть замок после 5 попыток. Отправляю email.</b>")
+        send_email_notification(
+            subject=f"Критическая ошибка TTLock: Замок {LOCK_ID} не открывается",
+            body=f"Замок с ID {LOCK_ID} не удалось открыть после 5 попыток.\nПоследняя ошибка: {last_error}"
+        )
+
+        # Последние 5 попыток (каждые 15 минут)
+        for i in range(5):
+            attempt_str = f"{i + 6} (каждые 15 мин)"
+            logger.info(f"Ожидание 15 минут перед попыткой #{i + 6}...")
+            time_module.sleep(15 * 60)
+            if try_unlock(attempt_str): return
+
+        # Если все попытки исчерпаны
+        final_error_msg = f"❗️❗️❗️ <b>ВСЕ 10 ПОПЫТОК ИСЧЕРПАНЫ. Замок не открыт.</b>\nПоследняя ошибка: {last_error}\nТребуется ручное вмешательство."
+        logger.error(final_error_msg)
+        send_telegram_message(final_error_msg)
+
     else:
         logger.info(f"Текущее время {current_time} не совпадает с временем открытия {open_time}")
 
