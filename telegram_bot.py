@@ -19,7 +19,7 @@ import sys
 from datetime import datetime
 import pytz
 import traceback
-from telegram_utils import send_telegram_message, is_authorized, log_exception
+from telegram_utils import send_telegram_message, is_authorized, log_exception, send_email_notification
 import re
 from typing import Any
 
@@ -64,8 +64,7 @@ SETBREAK_ACTION = 5
 SETBREAK_ADD = 6
 SETBREAK_DEL = 7
 SETTIMEZONE_VALUE = 8
-SETMAXRETRYTIME_VALUE = 9
-SETEMAIL_VALUE = 10
+SETEMAIL_VALUE = 9
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
@@ -752,9 +751,8 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     elif text == "⚙️ Настройки":
         # Показываем подменю настроек
         keyboard = [
-            ["👤 Сменить получателя", "⏰ Макс. время попыток"],
-            ["✉️ Установить Email"],
-            ["🔙 Назад"]
+            ["👤 Сменить получателя", "✉️ Установить Email"],
+            ["🧪 Тест Email", "🔙 Назад"]
         ]
         reply_markup = ReplyKeyboardMarkup(
             keyboard,
@@ -780,10 +778,10 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await settimezone(update, context)
     elif text == "👤 Сменить получателя":
         await setchat(update, context)
-    elif text == "⏰ Макс. время попыток":
-        await setmaxretrytime(update, context)
     elif text == "✉️ Установить Email":
         await setemail(update, context)
+    elif text == "🧪 Тест Email":
+        await test_email(update, context)
     elif text == "🔙 Назад":
         await menu(update, context)
 
@@ -864,57 +862,6 @@ async def logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_message("ERROR", f"Ошибка при получении логов: {e}")
         await send_message(update, f"Ошибка при получении логов: {e}")
 
-async def setmaxretrytime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Начало диалога настройки максимального времени для попыток.
-    """
-    if not is_authorized(update):
-        return ConversationHandler.END
-
-    await update.message.reply_text(
-        "Введите максимальное время для попыток открытия замка в формате ЧЧ:ММ\n"
-        "Например: 21:00\n"
-        "Это время, после которого система прекратит попытки открыть замок в текущий день."
-    )
-    return SETMAXRETRYTIME_VALUE
-
-async def setmaxretrytime_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Обработка введенного максимального времени для попыток.
-    """
-    if not is_authorized(update):
-        return ConversationHandler.END
-
-    time_str = update.message.text.strip()
-
-    # Проверяем формат времени
-    try:
-        datetime.strptime(time_str, "%H:%M")
-    except ValueError:
-        await update.message.reply_text(
-            "❌ Неверный формат времени. Используйте формат ЧЧ:ММ (например, 21:00)"
-        )
-        return SETMAXRETRYTIME_VALUE
-
-    # Загружаем текущую конфигурацию
-    config = load_config()
-
-    # Обновляем время
-    config["max_retry_time"] = time_str
-
-    # Сохраняем конфигурацию
-    save_config(config)
-
-    # Перезапускаем сервис
-    await restart_auto_unlocker_and_notify(
-        update,
-        logger,
-        f"✅ Максимальное время для попыток открытия установлено на {time_str}",
-        "❌ Ошибка при перезапуске сервиса"
-    )
-
-    return ConversationHandler.END
-
 async def setemail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Начинает процесс установки email для уведомлений.
@@ -968,6 +915,26 @@ async def setemail_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
     return ConversationHandler.END
 
+async def test_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Отправляет тестовое email-сообщение.
+    """
+    if not is_authorized(update):
+        await update.message.reply_text("⛔️ Нет доступа.")
+        return
+
+    await update.message.reply_text("Отправляю тестовое email-сообщение...")
+
+    success = send_email_notification(
+        subject="Тестовое уведомление от TTLock Bot",
+        body="Это тестовое сообщение для проверки настроек отправки email."
+    )
+
+    if success:
+        await update.message.reply_text("✅ Сообщение успешно отправлено!")
+    else:
+        await update.message.reply_text("❌ Не удалось отправить сообщение. Проверьте настройки SMTP в .env и логи.")
+
 def main():
     """
     Точка входа: запускает Telegram-бота и обработчики команд.
@@ -991,6 +958,7 @@ def main():
             CommandHandler('open', open_lock),
             CommandHandler('close', close_lock),
             CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd),
+            CommandHandler('test_email', test_email),
             # Добавляем обработчик для кнопок меню
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_button),
             # Обработчики для inline-кнопок
@@ -1024,13 +992,6 @@ def main():
                 states={
                     SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, setbreak_remove)],
-                },
-                fallbacks=[]
-            ),
-            ConversationHandler(
-                entry_points=[CommandHandler('setmaxretrytime', setmaxretrytime)],
-                states={
-                    SETMAXRETRYTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, setmaxretrytime_value)],
                 },
                 fallbacks=[]
             ),

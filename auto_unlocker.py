@@ -19,9 +19,7 @@ from logging.handlers import TimedRotatingFileHandler
 import ttlock_api
 from typing import Optional, Dict, List, Any, Union
 import re
-import smtplib
-from email.mime.text import MIMEText
-from email.header import Header
+from telegram_utils import send_email_notification
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
 ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
@@ -244,28 +242,6 @@ def resolve_lock_id(token: str) -> Optional[str]:
     logger.info(msg)
     send_telegram_message(f"ℹ️ lock_id выбран из списка: <code>{lock_id}</code>")
     return lock_id
-
-def send_email_notification(subject: str, body: str):
-    """
-    Отправляет email-уведомление.
-    """
-    if not all([EMAIL_TO, SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD]):
-        logger.warning("Параметры для отправки email не настроены. Уведомление не отправлено.")
-        return
-
-    msg = MIMEText(body, 'plain', 'utf-8')
-    msg['Subject'] = Header(subject, 'utf-8')
-    msg['From'] = SMTP_USER
-    msg['To'] = EMAIL_TO
-
-    try:
-        # Используем SMTP_SSL для безопасного соединения
-        with smtplib.SMTP_SSL(SMTP_SERVER, int(SMTP_PORT)) as server:
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, [EMAIL_TO], msg.as_string())
-        logger.info(f"Email-уведомление отправлено на {EMAIL_TO}.")
-    except Exception as e:
-        logger.error(f"Ошибка отправки email: {e}")
 
 def job() -> None:
     """

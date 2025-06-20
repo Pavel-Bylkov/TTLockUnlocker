@@ -779,3 +779,24 @@ async def test_settime_invalid_time(mock_send_message: Tuple[AsyncMock, List[str
         await telegram_bot.handle_menu_button(update, context)
         assert any("некорректный формат времени" in msg.lower() for msg in sent_messages)
         assert context.user_data["state"] == telegram_bot.SETTIME_VALUE  # Состояние не должно измениться
+
+@pytest.mark.asyncio
+async def test_test_email_command(mock_send_message: tuple[AsyncMock, list[str]]):
+    """
+    Тест команды для отправки тестового email.
+    """
+    mock_send, sent_messages = mock_send_message
+    update = DummyUpdate()
+    context = DummyContext()
+
+    with patch('telegram_bot.is_authorized', return_value=True), \
+         patch('telegram_bot.send_email_notification', return_value=True) as mock_send_email, \
+         patch.object(update.message, 'reply_text', side_effect=mock_send):
+
+        await telegram_bot.test_email(update, context)
+
+        # Проверяем, что функция отправки email была вызвана
+        mock_send_email.assert_called_once()
+        # Проверяем, что бот отправил подтверждающие сообщения
+        assert any("Отправляю тестовое" in msg for msg in sent_messages)
+        assert any("Сообщение успешно отправлено" in msg for msg in sent_messages)
