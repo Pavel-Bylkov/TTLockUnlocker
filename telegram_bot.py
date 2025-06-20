@@ -1029,21 +1029,24 @@ def main():
                     ASK_CODEWORD: [MessageHandler(filters.TEXT, check_codeword)],
                     CONFIRM_CHANGE: [MessageHandler(filters.TEXT, confirm_change)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_chat=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
                 states={
                     SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT, settimezone_apply)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_chat=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('settime', settime)],
                 states={
                     SETTIME_VALUE: [MessageHandler(filters.TEXT, settime_value)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_chat=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
@@ -1051,14 +1054,16 @@ def main():
                     SETBREAK_ADD: [MessageHandler(filters.TEXT, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(filters.TEXT, setbreak_remove)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_chat=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('setemail', setemail)],
                 states={
                     SETEMAIL_VALUE: [MessageHandler(filters.TEXT, setemail_value)],
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_chat=True
             ),
             # Потом MessageHandler для меню
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_button),
