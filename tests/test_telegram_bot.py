@@ -214,12 +214,17 @@ class DummyUpdate:
         self.message.text = text or ''
         self.effective_chat = types.SimpleNamespace(id=chat_id)
 
+class DummyApplication:
+    def __init__(self):
+        self.bot_data = {}
+
 class DummyContext:
     """
     Мок объекта Context для тестов.
     """
     def __init__(self) -> None:
         self.user_data: Dict[str, Any] = {}
+        self.application = DummyApplication()
 
 @pytest.mark.asyncio
 async def test_start() -> None:
