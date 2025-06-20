@@ -214,6 +214,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     log_message("DEBUG", f"confirm_change: ответ пользователя '{update.message.text}'")
     if update.message.text.lower() == 'да':
+        await update.message.reply_text("✅ Кодовое слово верно. Начинаю смену получателя...")
         new_chat_id = str(context.user_data['new_chat_id'])
         log_message("DEBUG", f"Начинаю запись chat_id={new_chat_id} в {ENV_PATH}")
         try:
@@ -246,6 +247,7 @@ async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_message(update, msg)
             return ConversationHandler.END
         # Пробуем перезапустить контейнер, если он есть
+        await update.message.reply_text("⚙️ Файл `.env` обновлён. Перезапускаю сервис...")
         await restart_auto_unlocker_and_notify(update, logger, "Получатель уведомлений изменён, скрипт перезапущен.", "Ошибка перезапуска контейнера")
         return ConversationHandler.END
     else:
@@ -325,6 +327,7 @@ async def enable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
+    await update.message.reply_text("⚙️ Сохраняю настройки. Перезапускаю сервис...")
     cfg = load_config()
     cfg["schedule_enabled"] = True
     save_config(cfg)
@@ -339,6 +342,7 @@ async def disable_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
+    await update.message.reply_text("⚙️ Сохраняю настройки. Перезапускаю сервис...")
     cfg = load_config()
     cfg["schedule_enabled"] = False
     save_config(cfg)
@@ -353,6 +357,7 @@ async def open_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
+    await update.message.reply_text("🔑 Отправляю команду на открытие замка...")
     try:
         token = ttlock_api.get_token(logger)
         log_message("DEBUG", f"Получен токен: {token}")
@@ -377,6 +382,7 @@ async def close_lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
+    await update.message.reply_text("🔒 Отправляю команду на закрытие замка...")
     try:
         token = ttlock_api.get_token(logger)
         log_message("DEBUG", f"Получен токен: {token}")
@@ -677,6 +683,7 @@ async def restart_auto_unlocker_cmd(update: Update, context: ContextTypes.DEFAUL
     if not is_authorized(update):
         await send_message(update, "Нет доступа.")
         return
+    await update.message.reply_text("🔄 Отправляю команду на перезапуск сервиса...")
     await restart_auto_unlocker_and_notify(update, logger, "Сервис автооткрытия перезапущен по команде.", "Не удалось перезапустить сервис автооткрытия")
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -896,6 +903,7 @@ async def setemail_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"Не удалось прочитать .env: {e}")
         return ConversationHandler.END
 
+    await update.message.reply_text("⚙️ Сохраняю новые настройки...")
     with open(ENV_PATH, 'w') as f:
         found = False
         for line in lines:
