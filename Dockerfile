@@ -11,6 +11,7 @@ COPY telegram_utils.py ./
 RUN mkdir -p /app/logs && chown appuser:appuser /app/logs && chown appuser:appuser auto_unlocker.py ttlock_api.py telegram_utils.py || true
 ENV TZ=Asia/Novosibirsk
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
 USER appuser
 
 # Healthcheck: скрипт должен быть живым процессом

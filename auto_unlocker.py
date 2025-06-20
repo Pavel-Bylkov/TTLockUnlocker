@@ -378,7 +378,7 @@ def log_heartbeat():
     """
     Логирует сообщение о том, что сервис работает.
     """
-    next_run = schedule.next_run
+    next_run = schedule.next_run()
     next_run_time = next_run.strftime('%Y-%m-%d %H:%M:%S') if next_run else "Нет запланированных задач"
     logger.info(f"Планировщик активен. Следующая задача в: {next_run_time}")
 
