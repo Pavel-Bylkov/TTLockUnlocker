@@ -35,4 +35,6 @@ fixperms:
 	chown -R 1000:1000 logs || true
 	chmod -R 755 logs || true
 	chmod -R 755 env || true
-	chmod 666 config.json || true 
+	chmod 666 config.json || true
+	touch blocked_chat_ids.json
+	chmod 666 blocked_chat_ids.json

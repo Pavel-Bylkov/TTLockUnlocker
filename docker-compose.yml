@@ -39,6 +39,7 @@ services:
       - ./env/.env:/app/.env   # .env как bind-mount
       - ./config.json:/app/config.json  # настройки
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./blocked_chat_ids.json:/app/blocked_chat_ids.json  # файл блокировок
 
 volumes:
-  shared_data: 
+  shared_data:

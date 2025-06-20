@@ -90,6 +90,26 @@ if missing_vars:
     print(f"[ERROR] Не заданы обязательные переменные окружения: {', '.join(missing_vars)}. Проверьте .env файл!")
     exit(1)
 
+# Глобальный set для блокировки chat_id, которые 5 раз ввели неверный код
+BLOCKED_CHAT_IDS_FILE = 'blocked_chat_ids.json'
+
+# Глобальный set для блокировки chat_id, которые 5 раз ввели неверный код
+try:
+    with open(BLOCKED_CHAT_IDS_FILE, 'r', encoding='utf-8') as f:
+        BLOCKED_CHAT_IDS = set(json.load(f))
+        print(f"[INFO] Загружено {len(BLOCKED_CHAT_IDS)} заблокированных chat_id из {BLOCKED_CHAT_IDS_FILE}")
+except Exception:
+    BLOCKED_CHAT_IDS = set()
+    print(f"[INFO] Файл {BLOCKED_CHAT_IDS_FILE} не найден или пуст, блокировка не загружена.")
+
+def save_blocked_chat_ids(blocked_set):
+    try:
+        with open(BLOCKED_CHAT_IDS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(list(blocked_set), f, ensure_ascii=False, indent=2)
+        log_message("INFO", f"Список заблокированных chat_id сохранён в {BLOCKED_CHAT_IDS_FILE}")
+    except Exception as e:
+        log_message("ERROR", f"Ошибка сохранения {BLOCKED_CHAT_IDS_FILE}: {e}")
+
 def log_message(category: str, message: str):
     """
     Унифицированная функция для логирования сообщений.
@@ -190,6 +210,13 @@ async def setchat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Запрашивает у пользователя кодовое слово для смены chat_id.
     """
     log_message("INFO", f"Получена команда /setchat от chat_id={update.effective_chat.id}")
+    # Проверяем блокировку
+    blocked = context.application.bot_data.get('blocked_chat_ids', set())
+    # Добавляем глобальные блокировки
+    blocked.update(BLOCKED_CHAT_IDS)
+    if update.effective_chat.id in blocked:
+        await send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
+        return ConversationHandler.END
     await send_message(update, "Введите кодовое слово:")
     return ASK_CODEWORD
 
@@ -197,17 +224,36 @@ async def check_codeword(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Проверяет введённое кодовое слово. Если верно — предлагает подтвердить смену chat_id.
     """
-    log_message("DEBUG", f"[check_codeword] Вход. chat_id={update.effective_chat.id}, text='{update.message.text.strip()}'")
-    log_message("DEBUG", f"check_codeword: введено '{update.message.text.strip()}', ожидается '{CODEWORD}'")
+    chat_id = update.effective_chat.id
+    bot_data = context.application.bot_data
+    blocked = bot_data.setdefault('blocked_chat_ids', set())
+    # Добавляем глобальные блокировки
+    blocked.update(BLOCKED_CHAT_IDS)
+    attempts = bot_data.setdefault('codeword_attempts', {})
+    log_message("DEBUG", f"[check_codeword] Вход. chat_id={chat_id}, text='{update.message.text.strip()}'")
+    if chat_id in blocked:
+        await send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
+        return ConversationHandler.END
     if update.message.text.strip() == CODEWORD:
         log_message("DEBUG", f"Кодовое слово верно. chat_id={update.message.chat_id}")
         await send_message(update, "Кодовое слово верно! Подтвердите смену получателя (да/нет):")
         context.user_data['new_chat_id'] = update.message.chat_id
+        # Сбросить счетчик попыток
+        attempts.pop(chat_id, None)
         return CONFIRM_CHANGE
     else:
-        log_message("DEBUG", "Неверное кодовое слово")
-        await send_message(update, "Неверное кодовое слово.")
-        return ConversationHandler.END
+        # Увеличиваем счетчик попыток
+        attempts[chat_id] = attempts.get(chat_id, 0) + 1
+        log_message("DEBUG", f"Неверное кодовое слово. Попытка {attempts[chat_id]} из 5 для chat_id={chat_id}")
+        if attempts[chat_id] >= 5:
+            blocked.add(chat_id)
+            BLOCKED_CHAT_IDS.add(chat_id)
+            save_blocked_chat_ids(BLOCKED_CHAT_IDS)
+            log_message("INFO", f"chat_id={chat_id} заблокирован за 5 неверных попыток кодового слова (сохранено)")
+            await send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
+            return ConversationHandler.END
+        await send_message(update, f"Неверное кодовое слово. Осталось попыток: {5 - attempts[chat_id]}")
+        return ASK_CODEWORD
 
 async def confirm_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
