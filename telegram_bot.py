@@ -1040,8 +1040,8 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
-                    ASK_CODEWORD: [MessageHandler(filters.TEXT, check_codeword)],
-                    CONFIRM_CHANGE: [MessageHandler(filters.TEXT, confirm_change)],
+                    ASK_CODEWORD: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), check_codeword)],
+                    CONFIRM_CHANGE: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), confirm_change)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1049,7 +1049,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
                 states={
-                    SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT, settimezone_apply)],
+                    SETTIMEZONE_VALUE: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), settimezone_apply)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1057,7 +1057,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settime', settime)],
                 states={
-                    SETTIME_VALUE: [MessageHandler(filters.TEXT, settime_value)],
+                    SETTIME_VALUE: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), settime_value)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1065,8 +1065,8 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
                 states={
-                    SETBREAK_ADD: [MessageHandler(filters.TEXT, setbreak_add)],
-                    SETBREAK_DEL: [MessageHandler(filters.TEXT, setbreak_remove)],
+                    SETBREAK_ADD: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), setbreak_add)],
+                    SETBREAK_DEL: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), setbreak_remove)],
                 },
                 fallbacks=[],
                 per_chat=True
@@ -1074,7 +1074,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setemail', setemail)],
                 states={
-                    SETEMAIL_VALUE: [MessageHandler(filters.TEXT, setemail_value)],
+                    SETEMAIL_VALUE: [MessageHandler(filters.TEXT & ~filters.Regex(MENU_REGEX), setemail_value)],
                 },
                 fallbacks=[],
                 per_chat=True
