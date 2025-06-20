@@ -176,10 +176,10 @@ def logs(update, context):
     Показывает последние записи из логов сервиса автооткрытия.
     """
     log_message(logger, "INFO", f"Получена команда /logs от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
-    
+
     try:
         message = format_logs()
         send_message(update, message)
@@ -191,9 +191,9 @@ def setemail(update, context) -> int:
     """
     Начинает процесс установки email для уведомлений.
     """
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         return ConversationHandler.END
-        
+
     send_message(update,
         "Введите email для получения уведомлений о критических ошибках:"
     )
@@ -203,16 +203,16 @@ def setemail_value(update, context) -> int:
     """
     Сохраняет email в .env файл.
     """
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         return ConversationHandler.END
-        
+
     email = update.message.text.strip()
-    
+
     # Простая проверка формата email
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         send_message(update, "Некорректный формат email. Попробуйте еще раз.")
         return SETEMAIL_VALUE
-        
+
     log_message(logger, "DEBUG", f"Начинаю запись EMAIL_TO={email} в {ENV_PATH}")
     try:
         with open(ENV_PATH, 'r') as f:
@@ -245,17 +245,17 @@ def test_email(update, context):
     """
     Отправляет тестовое email-сообщение.
     """
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "⛔️ Нет доступа.")
         return
 
     send_message(update, "Отправляю тестовое email-сообщение...")
-    
+
     success = send_email_notification(
         subject="Тестовое уведомление от TTLock Bot",
         body="Это тестовое сообщение для проверки настроек отправки email."
     )
-    
+
     if success:
         send_message(update, "✅ Сообщение успешно отправлено!")
     else:
@@ -390,7 +390,7 @@ def status(update, context):
     Показывает текущий статус расписания и сервиса.
     """
     log_message(logger, "INFO", f"Получена команда /status от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
     cfg = load_config(CONFIG_PATH, logger, default={
@@ -403,7 +403,7 @@ def status(update, context):
     enabled = cfg.get("schedule_enabled", True)
     open_times = cfg.get("open_times", {})
     breaks = cfg.get("breaks", {})
-    
+
     # Проверка статуса auto_unlocker
     try:
         client = docker.from_env()
@@ -420,7 +420,7 @@ def status(update, context):
     except Exception as e:
         log_message(logger, "ERROR", f"Ошибка получения статуса контейнера: {e}")
         status_str = ""
-    
+
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
@@ -429,14 +429,14 @@ def status(update, context):
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
         msg += f"{day}: {t if t else 'выключено'}\n"
-    
+
     # Только дни с перерывами
     breaks_with_values = {day: br for day, br in breaks.items() if br}
     if breaks_with_values:
         msg += "<b>Перерывы:</b>\n"
         for day, br in breaks_with_values.items():
             msg += f"{day}: {', '.join(br)}\n"
-    
+
     send_message(update, msg)
 
 def enable_schedule(update, context):
@@ -444,7 +444,7 @@ def enable_schedule(update, context):
     Включает расписание.
     """
     log_message(logger, "INFO", f"Получена команда /enable_schedule от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
     send_message(update, "⚙️ Сохраняю настройки. Перезапускаю сервис...")
@@ -459,7 +459,7 @@ def disable_schedule(update, context):
     Отключает расписание.
     """
     log_message(logger, "INFO", f"Получена команда /disable_schedule от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
     send_message(update, "⚙️ Сохраняю настройки. Перезапускаю сервис...")
@@ -474,7 +474,7 @@ def open_lock(update, context):
     Открывает замок.
     """
     log_message(logger, "INFO", f"Получена команда /open от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
     send_message(update, "🔑 Отправляю команду на открытие замка...")
@@ -499,7 +499,7 @@ def close_lock(update, context):
     Закрывает замок.
     """
     log_message(logger, "INFO", f"Получена команда /close от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
     send_message(update, "🔒 Отправляю команду на закрытие замка...")
@@ -524,7 +524,7 @@ def settimezone(update, context):
     Начинает процесс настройки часового пояса.
     """
     log_message(logger, "INFO", f"Получена команда /settimezone от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return ConversationHandler.END
     send_message(update, "Введите часовой пояс (например, Europe/Moscow):")
@@ -558,7 +558,7 @@ def settime(update, context) -> int:
     """
     Начало процесса настройки времени открытия.
     """
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "⛔️ У вас нет доступа к этой команде.")
         return ConversationHandler.END
 
@@ -597,39 +597,39 @@ def settime_value(update, context):
     if DEBUG:
         log_message(logger, "DEBUG", f"Пользователь вводит время: {update.message.text.strip()}")
     time_str = update.message.text.strip()
-    
+
     # Проверяем формат времени
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
         send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
         return
-        
+
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
             send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return
-            
+
         # Форматируем время в формат HH:MM
         time_str = f"{hour:02d}:{minute:02d}"
-            
+
         cfg = load_config(CONFIG_PATH, logger)
         if "open_times" not in cfg:
             cfg["open_times"] = {}
-            
+
         # Сохраняем день перед очисткой состояния
         day = context.user_data["day"]
         cfg["open_times"][day] = time_str
         save_config(cfg, CONFIG_PATH, logger)
-        
+
         # Очищаем состояние
         context.user_data.pop("state", None)
         context.user_data.pop("day", None)
-        
+
         # Перезапуск auto_unlocker
         restart_auto_unlocker_and_notify(
-            update, 
-            logger, 
+            update,
+            logger,
             f"Время открытия для {day} установлено на {time_str}. \nAuto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
@@ -642,7 +642,7 @@ def setbreak(update, context):
     Начинает процесс установки перерывов.
     """
     log_message(logger, "INFO", f"Получена команда /setbreak от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return ConversationHandler.END
     keyboard = [[InlineKeyboardButton(day, callback_data=f"setbreak_{day}")] for day in DAYS]
@@ -693,7 +693,7 @@ def restart_auto_unlocker_cmd(update, context):
     Перезапускает сервис автооткрытия по команде.
     """
     log_message(logger, "INFO", f"Получена команда /restart_auto_unlocker от chat_id={update.effective_chat.id}")
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
     send_message(update, "🔄 Отправляю команду на перезапуск сервиса...")
@@ -727,7 +727,7 @@ def setbreak_add(update, context):
     """
     Добавляет перерыв.
     """
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return ConversationHandler.END
     break_str = update.message.text.strip()
@@ -770,7 +770,7 @@ def setbreak_remove(update, context):
     """
     Удаляет перерыв.
     """
-    if not is_authorized(update):
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return ConversationHandler.END
     break_str = update.message.text.strip()
