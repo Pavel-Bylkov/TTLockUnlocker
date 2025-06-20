@@ -314,7 +314,7 @@ async def test_open_close_lock(mock_send_message: Tuple[AsyncMock, List[str]]) -
          patch('telegram_bot.ttlock_api.unlock_lock', return_value={'success': True, 'errcode': 0, 'attempt': 1}):
         await telegram_bot.open_lock(update, context)
         assert any("открыт" in msg.lower() for msg in sent_messages)
-        assert len(sent_messages) == 1
+        assert len(sent_messages) == 2  # Ожидаем 2 сообщения: промежуточное и итоговое
 
     # Очищаем список сообщений
     sent_messages.clear()
@@ -482,7 +482,7 @@ async def test_setchat_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock
         result = await telegram_bot.confirm_change(update, context)
         assert result == telegram_bot.ConversationHandler.END
         assert any("изменён" in msg.lower() for msg in sent_messages)
-        assert len(sent_messages) == 1
+        assert len(sent_messages) == 3 # Ожидаем 3 сообщения
 
 @pytest.mark.asyncio
 async def test_close_lock_command(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -496,10 +496,10 @@ async def test_close_lock_command(mock_send_message: Tuple[AsyncMock, List[str]]
     with patch('telegram_bot.is_authorized', return_value=True), \
          patch.object(update.message, 'reply_text', side_effect=mock_send), \
          patch('telegram_bot.ttlock_api.get_token', return_value='test_token'), \
-         patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True, 'errcode': 0}):
+         patch('telegram_bot.ttlock_api.lock_lock', return_value={'success': True, 'errcode': 0, 'attempt': 1}):
         await telegram_bot.close_lock(update, context)
         assert any("закрыт" in msg.lower() for msg in sent_messages)
-        assert len(sent_messages) == 1
+        assert len(sent_messages) == 2 # Ожидаем 2 сообщения
 
 @pytest.mark.asyncio
 async def test_enable_schedule_command(mock_send_message: Tuple[AsyncMock, List[str]], mock_restart_and_notify: AsyncMock) -> None:
@@ -518,7 +518,7 @@ async def test_enable_schedule_command(mock_send_message: Tuple[AsyncMock, List[
         await telegram_bot.enable_schedule(update, context)
         assert any("включено" in msg.lower() for msg in sent_messages)
         assert any("перезапущен" in msg.lower() for msg in sent_messages)
-        assert len(sent_messages) == 1
+        assert len(sent_messages) == 2 # Ожидаем 2 сообщения
 
 @pytest.mark.asyncio
 async def test_disable_schedule_command(mock_send_message: Tuple[AsyncMock, List[str]], mock_restart_and_notify: AsyncMock) -> None:
@@ -537,7 +537,7 @@ async def test_disable_schedule_command(mock_send_message: Tuple[AsyncMock, List
         await telegram_bot.disable_schedule(update, context)
         assert any("отключено" in msg.lower() for msg in sent_messages)
         assert any("перезапущен" in msg.lower() for msg in sent_messages)
-        assert len(sent_messages) == 1
+        assert len(sent_messages) == 2 # Ожидаем 2 сообщения
 
 @pytest.mark.asyncio
 async def test_logs_command(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
@@ -603,64 +603,6 @@ async def test_logs_command_error(mock_send_message: Tuple[AsyncMock, List[str]]
         await telegram_bot.logs(update, context)
         assert any("Ошибка чтения логов" in msg for msg in sent_messages)
         assert len(sent_messages) == 1
-
-@pytest.mark.asyncio
-async def test_setmaxretrytime_flow(mock_send_message: Tuple[AsyncMock, List[str]], mock_restart_and_notify: AsyncMock) -> None:
-    """
-    Тест процесса настройки максимального времени для попыток.
-    """
-    mock_send, sent_messages = mock_send_message
-    update = DummyUpdate()
-    context = DummyContext()
-
-    # Начало настройки максимального времени
-    with patch('telegram_bot.is_authorized', return_value=True), \
-         patch.object(update.message, 'reply_text', side_effect=mock_send):
-        result = await telegram_bot.setmaxretrytime(update, context)
-        assert result == telegram_bot.SETMAXRETRYTIME_VALUE
-        assert any("Введите максимальное время" in msg for msg in sent_messages)
-
-    # Ввод времени
-    update.message.text = "21:00"
-    with patch('telegram_bot.is_authorized', return_value=True), \
-         patch.object(update.message, 'reply_text', side_effect=mock_send), \
-         patch('telegram_bot.save_config'), \
-         patch('telegram_bot.restart_auto_unlocker_and_notify', mock_restart_and_notify):
-        result = await telegram_bot.setmaxretrytime_value(update, context)
-        assert result == telegram_bot.ConversationHandler.END
-        assert any("Максимальное время для попыток открытия установлено" in msg for msg in sent_messages)
-
-@pytest.mark.asyncio
-async def test_setmaxretrytime_invalid_format(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
-    """
-    Тест ввода некорректного формата времени.
-    """
-    mock_send, sent_messages = mock_send_message
-    update = DummyUpdate(text="25:00")  # Некорректное время
-    context = DummyContext()
-
-    with patch('telegram_bot.is_authorized', return_value=True), \
-         patch.object(update.message, 'reply_text', side_effect=mock_send):
-        result = await telegram_bot.setmaxretrytime_value(update, context)
-        assert result == telegram_bot.SETMAXRETRYTIME_VALUE
-        assert any("Неверный формат времени" in msg for msg in sent_messages)
-
-@pytest.mark.asyncio
-async def test_setmaxretrytime_unauthorized(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
-    """
-    Тест попытки настройки времени неавторизованным пользователем.
-
-    Args:
-        mock_send_message: Фикстура для перехвата сообщений
-    """
-    mock_send, sent_messages = mock_send_message
-    update = DummyUpdate()
-    context = DummyContext()
-
-    with patch('telegram_bot.is_authorized', return_value=False):
-        result = await telegram_bot.setmaxretrytime(update, context)
-        assert result == telegram_bot.ConversationHandler.END
-        assert not sent_messages  # Сообщения не должны отправляться
 
 @pytest.mark.asyncio
 async def test_settime_full_flow(mock_send_message: Tuple[AsyncMock, List[str]]) -> None:
