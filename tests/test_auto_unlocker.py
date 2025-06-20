@@ -261,22 +261,19 @@ def test_job_success(mock_timezone, mock_datetime):
 
 def test_job_with_retries(mock_timezone, mock_datetime):
     """
-    Тест повторных попыток открытия замка при ошибке.
+    Тест повторных попыток открытия замка при ошибке (новая логика).
+    Все 10 попыток завершаются неудачей.
     """
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
         "open_times": {"Пн": "09:00"},
-        "breaks": {"Пн": []},
-        "max_retry_time": "21:00"
+        "breaks": {"Пн": []}
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
-         patch('auto_unlocker.ttlock_api.unlock_lock', side_effect=[
-             {"errcode": 10003, "errmsg": "Lock is busy"},  # Первая попытка
-             {"errcode": 10003, "errmsg": "Lock is busy"},  # Вторая попытка
-             {"errcode": 10003, "errmsg": "Lock is busy"}   # Третья попытка
-         ], return_value={"errcode": 10003, "errmsg": "Lock is busy"}), \
-         patch('auto_unlocker.send_telegram_message') as mock_send, \
+         patch('auto_unlocker.ttlock_api.unlock_lock', return_value={"errcode": 10003, "errmsg": "Lock is busy"}), \
+         patch('auto_unlocker.send_telegram_message') as mock_send_telegram, \
+         patch('auto_unlocker.send_email_notification') as mock_send_email, \
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
 
@@ -286,30 +283,33 @@ def test_job_with_retries(mock_timezone, mock_datetime):
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
-        assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
+
+        # Проверяем вызовы: 10 попыток + 1 сообщение о 3-х неудачных + 1 о 5-ти + 1 итоговое
+        assert mock_send_telegram.call_count == 10 + 3
+        # Проверяем, что email был отправлен один раз
+        mock_send_email.assert_called_once()
+        # Проверяем, что были задержки
+        assert mock_sleep.call_count > 0
 
 def test_job_with_successful_retry(mock_timezone, mock_datetime):
     """
-    Тест успешного открытия замка со второй попытки.
+    Тест успешного открытия замка со второй попытки (новая логика).
     """
     with patch('auto_unlocker.load_config', return_value={
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
         "open_times": {"Пн": "09:00"},
-        "breaks": {"Пн": []},
-        "max_retry_time": "21:00"
+        "breaks": {"Пн": []}
     }), \
          patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
          patch('auto_unlocker.ttlock_api.unlock_lock', side_effect=[
-             {"errcode": 10003, "errmsg": "Lock is busy"},  # Первая попытка
-             {"errcode": 0}  # Успешная вторая попытка
-         ], return_value={"errcode": 0}), \
-         patch('auto_unlocker.send_telegram_message') as mock_send, \
+             {"errcode": 10003, "errmsg": "Lock is busy"},  # 1-я попытка
+             {"errcode": 0}  # 2-я попытка (успех)
+         ]), \
+         patch('auto_unlocker.send_telegram_message') as mock_send_telegram, \
+         patch('auto_unlocker.send_email_notification') as mock_send_email, \
          patch('time.sleep') as mock_sleep, \
          patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
-
-        # Сбрасываем TIME_SHIFT перед тестом
-        auto_unlocker.TIME_SHIFT = None
 
         # Создаем мок-объект для datetime.now()
         mock_now = MagicMock()
@@ -317,39 +317,13 @@ def test_job_with_successful_retry(mock_timezone, mock_datetime):
         mock_datetime.now.return_value = mock_now
 
         auto_unlocker.job()
-        assert mock_send.call_count == 2  # Сообщение об ошибке + сообщение об успешном открытии
 
-def test_job_with_max_retry_time(mock_timezone, mock_datetime):
-    """
-    Тест превышения максимального времени для попыток.
-    """
-    with patch('auto_unlocker.load_config', return_value={
-        "timezone": "Asia/Krasnoyarsk",
-        "schedule_enabled": True,
-        "open_times": {"Пн": "21:30"},  # Время после max_retry_time
-        "breaks": {"Пн": []},
-        "max_retry_time": "21:00"
-    }), \
-         patch('auto_unlocker.ttlock_api.get_token', return_value="test_token"), \
-         patch('auto_unlocker.ttlock_api.unlock_lock', side_effect=[
-             {"errcode": 10003, "errmsg": "Lock is busy"},  # Первая попытка
-             {"errcode": 10003, "errmsg": "Lock is busy"},  # Вторая попытка
-             {"errcode": 10003, "errmsg": "Lock is busy"}   # Третья попытка
-         ], return_value={"errcode": 10003, "errmsg": "Lock is busy"}), \
-         patch('auto_unlocker.send_telegram_message') as mock_send, \
-         patch('time.sleep') as mock_sleep, \
-         patch.dict('os.environ', {'TTLOCK_LOCK_ID': 'test_lock_id'}):
-
-        # Сбрасываем TIME_SHIFT перед тестом
-        auto_unlocker.TIME_SHIFT = None
-
-        # Создаем мок-объект для datetime.now()
-        mock_now = MagicMock()
-        mock_now.strftime = lambda fmt: "21:30" if fmt == "%H:%M" else "monday" if fmt == "%A" else "2025-06-16 21:30:00"
-        mock_datetime.now.return_value = mock_now
-
-        auto_unlocker.job()
-        assert mock_send.call_count == 5  # 3 попытки + сообщение о смещении времени + сообщение о превышении времени
+        # 1 сообщение об ошибке + 1 об успехе
+        assert mock_send_telegram.call_count == 2
+        # Email не должен был отправляться
+        mock_send_email.assert_not_called()
+        # Была одна задержка
+        mock_sleep.assert_called_once_with(30)
 
 def test_job_with_time_shift(mock_timezone, mock_datetime):
     """
