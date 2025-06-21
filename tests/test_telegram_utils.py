@@ -120,7 +120,10 @@ def test_save_config_success(mock_logger):
         save_config({"key": "value"}, 'fake_path.json', mock_logger)
         m.assert_called_once_with('fake_path.json', 'w', encoding='utf-8')
         handle = m()
-        handle.write.assert_called_once_with(json.dumps({"key": "value"}, ensure_ascii=False, indent=2))
+        # Instead of checking for a single call, we join all write calls and compare the result
+        written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+        expected_content = json.dumps({"key": "value"}, ensure_ascii=False, indent=2)
+        assert written_content == expected_content
         mock_logger.debug.assert_called()
 
 def test_save_config_write_error(mock_logger):
