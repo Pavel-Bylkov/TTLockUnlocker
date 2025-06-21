@@ -7,36 +7,23 @@ from unittest.mock import patch, MagicMock, call, mock_open
 import schedule
 import pytz
 from datetime import tzinfo
+import telegram_utils
 
 @pytest.fixture(autouse=True)
-def setup_env():
-    # Сохраняем оригинальные значения
-    original_values = {}
-    for key in ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_CODEWORD', 
-                'AUTO_UNLOCKER_CONTAINER', 'TTLOCK_CLIENT_ID', 'TTLOCK_CLIENT_SECRET',
-                'TTLOCK_USERNAME', 'TTLOCK_PASSWORD', 'TTLOCK_LOCK_ID']:
-        original_values[key] = os.environ.get(key)
-        if key in os.environ:
-            del os.environ[key]
-    
-    # Устанавливаем тестовые значения
-    os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
-    os.environ['TELEGRAM_CHAT_ID'] = '123456'
-    os.environ['TELEGRAM_CODEWORD'] = 'test_codeword'
-    os.environ['AUTO_UNLOCKER_CONTAINER'] = 'test_container'
-    os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
-    os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
-    os.environ['TTLOCK_USERNAME'] = 'test_username'
-    os.environ['TTLOCK_PASSWORD'] = 'test_password'
-    
-    yield
-    
-    # Восстанавливаем оригинальные значения
-    for key, value in original_values.items():
-        if value is not None:
-            os.environ[key] = value
-        elif key in os.environ:
-            del os.environ[key]
+def setup_env(monkeypatch):
+    """Настройка окружения для всех тестов."""
+    monkeypatch.setenv('TELEGRAM_BOT_TOKEN', 'test_token')
+    monkeypatch.setenv('TELEGRAM_CHAT_ID', '123456')
+    monkeypatch.setenv('TTLOCK_LOCK_ID', 'test_lock_id')
+    monkeypatch.setenv('CONFIG_PATH', 'config.json')
+    auto_unlocker.CONFIG_PATH = 'config.json'
+    auto_unlocker.AUTHORIZED_CHAT_ID = '123456'
+    auto_unlocker.BOT_TOKEN = 'test_token'
+
+@pytest.fixture
+def mock_logger():
+    """Фикстура для мока логгера."""
+    return MagicMock()
 
 @pytest.fixture
 def mock_config():
@@ -387,4 +374,144 @@ def test_debug_request_non_json_response():
         assert "URL: http://test.com" in calls[1]
         assert "Параметры запроса: " in calls[2]
         assert "Статус ответа: 200" in calls[3]
-        assert "Тело ответа (не JSON): Plain text response" in calls[4] 
+        assert "Тело ответа (не JSON): Plain text response" in calls[4]
+
+def test_job_schedule_disabled(mock_logger):
+    """Тест: задача не выполняется, если расписание отключено."""
+    config = {"schedule_enabled": False}
+    with patch('telegram_utils.load_config', return_value=config):
+        with patch('auto_unlocker.process_unlock') as mock_process_unlock:
+            auto_unlocker.job()
+            mock_process_unlock.assert_not_called()
+
+def test_job_schedule_enabled(mock_logger):
+    """Тест: задача выполняется, если расписание включено."""
+    config = {"schedule_enabled": True, "timezone": "UTC"}
+    with patch('telegram_utils.load_config', return_value=config):
+        with patch('auto_unlocker.process_unlock') as mock_process_unlock:
+            auto_unlocker.job()
+            mock_process_unlock.assert_called_once()
+
+@patch('auto_unlocker.ttlock_api.get_token', return_value="test_token")
+@patch('auto_unlocker.ttlock_api.unlock_lock')
+@patch('telegram_utils.send_telegram_message')
+def test_process_unlock_success(mock_send_message, mock_unlock, mock_get_token, mock_logger):
+    """Тест: успешное открытие замка."""
+    mock_unlock.return_value = {"errcode": 0, "attempt": 1}
+    
+    auto_unlocker.process_unlock()
+    
+    mock_get_token.assert_called_once()
+    mock_unlock.assert_called_once_with("test_token", 'test_lock_id', mock_logger)
+    mock_send_message.assert_called_with(
+        'test_token', '123456', 
+        'Замок успешно открыт (попытка 1)',
+        mock_logger
+    )
+
+@patch('auto_unlocker.ttlock_api.get_token', return_value="test_token")
+@patch('auto_unlocker.ttlock_api.unlock_lock')
+@patch('telegram_utils.send_telegram_message')
+@patch('time.sleep', return_value=None) # Чтобы не ждать в тесте
+def test_process_unlock_with_retries_fail(mock_sleep, mock_send_message, mock_unlock, mock_get_token, mock_logger):
+    """Тест: неуспешное открытие после всех попыток."""
+    mock_unlock.return_value = {"errcode": 1, "errmsg": "Gateway timeout"}
+    
+    auto_unlocker.process_unlock()
+    
+    assert mock_unlock.call_count == 5
+    mock_send_message.assert_called_with(
+        'test_token', '123456',
+        "Не удалось открыть замок после 5 попыток. Ошибка: Gateway timeout",
+        mock_logger
+    )
+
+@patch('auto_unlocker.ttlock_api.get_token', return_value="test_token")
+@patch('auto_unlocker.ttlock_api.unlock_lock')
+@patch('telegram_utils.send_telegram_message')
+@patch('time.sleep', return_value=None)
+def test_process_unlock_with_retries_success_on_third_attempt(mock_sleep, mock_send_message, mock_unlock, mock_get_token, mock_logger):
+    """Тест: успешное открытие на третьей попытке."""
+    mock_unlock.side_effect = [
+        {"errcode": 1, "errmsg": "Fail"},
+        {"errcode": 1, "errmsg": "Fail"},
+        {"errcode": 0, "attempt": 3},
+    ]
+    
+    auto_unlocker.process_unlock()
+    
+    assert mock_unlock.call_count == 3
+    mock_send_message.assert_called_with(
+        'test_token', '123456',
+        'Замок успешно открыт (попытка 3)',
+        mock_logger
+    )
+
+def test_is_unlock_time_true(mock_logger):
+    """Тест: проверка времени открытия - должно сработать."""
+    now = datetime.strptime("09:00", "%H:%M").time()
+    open_time_str = "09:00"
+    breaks = []
+    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
+    assert result is True
+
+def test_is_unlock_time_false(mock_logger):
+    """Тест: проверка времени открытия - не должно сработать."""
+    now = datetime.strptime("09:01", "%H:%M").time()
+    open_time_str = "09:00"
+    breaks = []
+    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
+    assert result is False
+
+def test_is_unlock_time_in_break(mock_logger):
+    """Тест: проверка времени открытия - попадает в перерыв."""
+    now = datetime.strptime("13:30", "%H:%M").time()
+    open_time_str = "09:00" # не имеет значения для этого теста
+    breaks = ["13:00-14:00"]
+    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
+    assert result is False
+
+def test_is_unlock_time_no_schedule(mock_logger):
+    """Тест: проверка времени открытия - расписание на день не задано."""
+    now = datetime.strptime("09:00", "%H:%M").time()
+    open_time_str = None
+    breaks = []
+    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
+    assert result is False
+
+@patch('auto_unlocker.schedule.run_pending')
+@patch('time.sleep')
+@patch('telegram_utils.load_config')
+def test_main_loop(mock_load_config, mock_sleep, mock_run_pending, mock_logger):
+    """Тест главного цикла работы сервиса."""
+    # Мокаем, чтобы цикл выполнился один раз и вышел
+    mock_sleep.side_effect = InterruptedError
+    mock_load_config.return_value = {
+        "schedule_enabled": True,
+        "open_times": {"Пн": "10:00"},
+        "breaks": {}
+    }
+    
+    with pytest.raises(InterruptedError):
+        auto_unlocker.main()
+    
+    # Проверяем, что планировщик был настроен и запущен
+    assert auto_unlocker.schedule.jobs # Убеждаемся, что задачи добавлены
+    mock_run_pending.assert_called()
+    mock_sleep.assert_called()
+
+@patch('auto_unlocker.setup_schedule')
+def test_main_loop_reloads_schedule_on_change(mock_setup_schedule, mock_logger):
+    """Тест: главный цикл перезагружает расписание при изменении конфига."""
+    configs = [
+        {"schedule_enabled": True, "open_times": {"Пн": "10:00"}},
+        {"schedule_enabled": True, "open_times": {"Пн": "11:00"}} # Измененный конфиг
+    ]
+    
+    with patch('telegram_utils.load_config', side_effect=configs):
+        with patch('time.sleep', side_effect=[None, InterruptedError]): # Выполнить цикл дважды
+             with pytest.raises(InterruptedError):
+                auto_unlocker.main()
+
+    # setup_schedule должен быть вызван дважды: первый раз и при смене конфига
+    assert mock_setup_schedule.call_count == 2 

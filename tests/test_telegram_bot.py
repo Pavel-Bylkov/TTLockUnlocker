@@ -18,7 +18,7 @@ from telegram_bot import (
 import telegram_bot as bot_module
 import os
 import json
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock, mock_open, ANY
 
 from telegram import Update, Message, Chat, User, ReplyKeyboardMarkup, InlineKeyboardMarkup, CallbackQuery
 from telegram.ext import ConversationHandler
@@ -87,7 +87,7 @@ def test_setchat_authorized(mock_update, mock_context):
     """Тест: /setchat начинает диалог."""
     result = setchat(mock_update, mock_context)
     assert result == ASK_CODEWORD
-    mock_update.message.reply_text.assert_called_with("Введите кодовое слово:", reply_markup=MagicMock())
+    mock_update.message.reply_text.assert_called_with("Введите кодовое слово:", parse_mode='HTML', reply_markup=ANY)
 
 def test_setchat_blocked(mock_update, mock_context):
     """Тест: /setchat для заблокированного пользователя."""
@@ -98,14 +98,14 @@ def test_setchat_blocked(mock_update, mock_context):
     result = setchat(mock_update, mock_context)
     
     assert result == ConversationHandler.END
-    mock_update.message.reply_text.assert_called_with("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
+    mock_update.message.reply_text.assert_called_with("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.", parse_mode='HTML')
 
 def test_check_codeword_correct(mock_update, mock_context):
     """Тест: правильное кодовое слово."""
     mock_update.message.text = 'secretword'
     result = check_codeword(mock_update, mock_context)
     assert result == CONFIRM_CHANGE
-    mock_update.message.reply_text.assert_called_with("Кодовое слово верно! Подтвердите смену получателя (да/нет):", reply_markup=MagicMock())
+    mock_update.message.reply_text.assert_called_with("Кодовое слово верно! Подтвердите смену получателя (да/нет):", parse_mode='HTML', reply_markup=ANY)
     assert mock_context.user_data['new_chat_id'] == mock_update.message.chat_id
 
 def test_check_codeword_incorrect_and_block(mock_update, mock_context):
@@ -118,7 +118,9 @@ def test_check_codeword_incorrect_and_block(mock_update, mock_context):
     with patch('telegram_bot.save_blocked_chat_ids') as mock_save:
         result = check_codeword(mock_update, mock_context)
         assert result == ConversationHandler.END
-        mock_update.message.reply_text.assert_called_with("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
+        # Сначала идет сообщение о неверном коде, потом о блокировке
+        assert mock_update.message.reply_text.call_count == 2
+        mock_update.message.reply_text.assert_any_call("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.", parse_mode='HTML')
         mock_save.assert_called_once()
         assert chat_id_to_block in bot_module.BLOCKED_CHAT_IDS
 
