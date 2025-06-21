@@ -213,13 +213,22 @@ def list_locks(token: str, logger: Optional[logging.Logger] = None) -> List[Dict
         "date": int(time.time() * 1000)
     }
     try:
-        response = requests.post(url, data=data, verify=False)
+        response = requests.get(url, params=data, verify=False)
         if logger:
             logger.info(f"Ответ TTLock (list_locks): {response.text}")
         if DEBUG:
             print(f"[DEBUG] list_locks: {response.text}")
+        
         response_data = response.json()
+        
+        if "errcode" in response_data and response_data["errcode"] != 0:
+            msg = f"Ошибка при запросе списка замков: {response_data.get('errmsg', 'Unknown error')} (Код: {response_data.get('errcode')})"
+            if logger:
+                logger.error(msg)
+            return []
+            
         return response_data.get("list", [])
+        
     except Exception as e:
         msg = f"Ошибка получения списка замков: {str(e)}"
         if logger:
