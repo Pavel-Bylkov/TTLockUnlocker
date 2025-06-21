@@ -53,6 +53,7 @@ logger.addHandler(console)
 CODEWORD = os.getenv('TELEGRAM_CODEWORD', 'secretword')
 AUTO_UNLOCKER_CONTAINER = os.getenv('AUTO_UNLOCKER_CONTAINER', 'auto_unlocker_1')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+AUTHORIZED_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', 300613294)
 
 # Состояния для ConversationHandler
 ASK_CODEWORD = 0
@@ -113,7 +114,7 @@ def save_blocked_chat_ids(blocked_set):
 def send_message(update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> None:
     """
     Отправляет сообщение в Telegram с обработкой ошибок.
-    
+
     Args:
         update: Объект Update
         text: Текст сообщения
@@ -141,13 +142,13 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     try:
         if not os.path.exists(log_path):
             return "Лог-файл не найден."
-            
+
         with open(log_path, "r", encoding="utf-8") as f:
             lines = f.readlines()[-10:]  # Берем последние 10 строк
-        
+
         # Фильтруем пустые строки и удаляем лишние пробелы
         non_empty_lines = [line.strip() for line in lines if line.strip()]
-        
+
         # Заменяем дни недели
         days_map = {
             "monday": "Понедельник",
@@ -158,14 +159,14 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
             "saturday": "Суббота",
             "sunday": "Воскресенье"
         }
-        
+
         # Применяем замену дней недели к каждой строке
         processed_lines = []
         for line in non_empty_lines:
             for en, ru in days_map.items():
                 line = line.replace(en, ru)
             processed_lines.append(line)
-        
+
         return f"<b>Последние логи сервиса:</b>\n<code>{chr(10).join(processed_lines)}</code>"
     except Exception as e:
         log_message(logger, "ERROR", f"Ошибка чтения логов: {e}")
@@ -879,4 +880,4 @@ def main():
         raise
 
 if __name__ == '__main__':
-    main() 
+    main()
