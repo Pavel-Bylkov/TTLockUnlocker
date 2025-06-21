@@ -128,13 +128,15 @@ def test_lock_lock_scenarios(mock_post, mock_sleep, mock_logger):
 @patch('requests.get')
 def test_list_locks_success(mock_get, mock_logger):
     """Test successful retrieval of the lock list."""
-    mock_get.return_value.json.return_value = {"list": [{"lockId": 1}, {"lockId": 2}]}
+    # The API returns errcode 0 on success, even for list operations
+    mock_get.return_value.json.return_value = {"errcode": 0, "list": [{"lockId": 1}, {"lockId": 2}]}
 
     locks = ttlock_api.list_locks('token', mock_logger)
 
     assert locks == [{"lockId": 1}, {"lockId": 2}]
     mock_get.assert_called_once()
     mock_logger.info.assert_called_once()
+    mock_logger.error.assert_not_called()
 
 @patch('requests.get')
 def test_list_locks_api_error(mock_get, mock_logger):
@@ -146,6 +148,7 @@ def test_list_locks_api_error(mock_get, mock_logger):
     assert locks == []
     mock_logger.error.assert_called_once()
     assert "Auth failed" in mock_logger.error.call_args[0][0]
+    mock_get.assert_called_once()
 
 @patch('requests.get', side_effect=requests.exceptions.RequestException("Network Error"))
 def test_list_locks_network_error(mock_get, mock_logger):
