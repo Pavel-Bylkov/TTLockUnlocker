@@ -384,66 +384,74 @@ def restart_auto_unlocker_and_notify(update, logger, message_success, message_er
         send_message(update, message_success)
         logger.info("Сервис автооткрытия перезапущен после изменения конфигурации.")
     except Exception as e:
-        send_message(update, f"{message_error}: {e}")
-        log_exception(logger)
+        logger.error(f"Ошибка при перезапуске сервиса: {str(e)}")
+        send_message(update, f"🚫 {message_error}: {str(e)}")
 
 def status(update, context):
     """
-    Показывает текущий статус расписания и сервиса.
+    Показывает статус сервиса и замка.
     """
     logger.info(f"Получена команда /status от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
-    cfg = load_config(CONFIG_PATH, logger, default={
-        "timezone": "Asia/Novosibirsk",
-        "schedule_enabled": True,
-        "open_times": {},
-        "breaks": {}
-    })
-    tz = cfg.get("timezone", "?")
-    enabled = cfg.get("schedule_enabled", True)
+
+    cfg = load_config(CONFIG_PATH, logger)
+    tz_str = cfg.get("timezone", "N/A")
+    schedule_enabled = "✅ Включено" if cfg.get("schedule_enabled", True) else "❌ Отключено"
+
+    # Формируем базовую часть сообщения
+    message_lines = [
+        "<b>⚙️ Текущий статус сервиса:</b>",
+        f"  - Расписание: {schedule_enabled}",
+        f"  - Часовой пояс: <code>{tz_str}</code>"
+    ]
+
+    # Добавляем детальный статус замка
+    message_lines.append("\n<b>🔒 Статус замка:</b>")
+
+    token = ttlock_api.get_token(logger)
+    if not token:
+        message_lines.append("  - ❗️ Не удалось получить токен TTLock.")
+    elif not TTLOCK_LOCK_ID:
+        message_lines.append("  - ❗️ <code>TTLOCK_LOCK_ID</code> не задан в .env.")
+    else:
+        details = ttlock_api.get_lock_status_details(token, TTLOCK_LOCK_ID, logger)
+
+        # Статус сети
+        status = details.get("status", "неизвестно")
+        status_icon = "🟢" if status == "Online" else "🔴"
+        message_lines.append(f"  - {status_icon} Сеть: <b>{status}</b>")
+
+        # Заряд батареи
+        battery = details.get("battery")
+        if battery is not None:
+            battery_icon = "🔋" if battery > 20 else "🪫"
+            message_lines.append(f"  - {battery_icon} Заряд: <b>{battery}%</b>")
+        else:
+            message_lines.append("  - 🔋 Заряд: <b>неизвестно</b>")
+
+        # Последнее действие
+        last_action = details.get("last_action", "неизвестно")
+        message_lines.append(f"  - 🕰 Последнее действие: <b>{last_action}</b>")
+
+    # Формируем расписание
+    message_lines.append("\n<b>🗓️ Расписание открытия:</b>")
     open_times = cfg.get("open_times", {})
-    breaks = cfg.get("breaks", {})
+    if not open_times:
+        message_lines.append("  - Не настроено.")
+    else:
+        for day in DAYS:
+            time = open_times.get(day, "выходной")
+            breaks = cfg.get("breaks", {}).get(day, [])
+            break_str = f" (перерывы: {', '.join(breaks)})" if breaks else ""
+            message_lines.append(f"  - <b>{day}:</b> {time}{break_str}")
 
-    # Проверка статуса auto_unlocker
-    try:
-        client = docker.from_env()
-        container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
-        status_map = {
-            "running": "работает",
-            "exited": "остановлен",
-            "created": "создан",
-            "paused": "приостановлен",
-            "restarting": "перезапускается"
-        }
-        rus_status = status_map.get(container.status, container.status)
-        status_str = f"<b>Сервис автооткрытия:</b> <code>{rus_status}</code>"
-    except Exception as e:
-        logger.error(f"Ошибка получения статуса контейнера: {e}")
-        status_str = ""
-
-    msg = f"<b>Статус расписания</b>\n"
-    msg += f"Часовой пояс: <code>{tz}</code>\n"
-    msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
-    if status_str:
-        msg += status_str + "\n"
-    msg += "<b>Время открытия:</b>\n"
-    for day, t in open_times.items():
-        msg += f"{day}: {t if t else 'выключено'}\n"
-
-    # Только дни с перерывами
-    breaks_with_values = {day: br for day, br in breaks.items() if br}
-    if breaks_with_values:
-        msg += "<b>Перерывы:</b>\n"
-        for day, br in breaks_with_values.items():
-            msg += f"{day}: {', '.join(br)}\n"
-
-    send_message(update, msg)
+    send_message(update, "\n".join(message_lines))
 
 def enable_schedule(update, context):
     """
-    Включает расписание.
+    Включает расписание в конфиге.
     """
     logger.info(f"Получена команда /enable_schedule от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):

@@ -238,6 +238,92 @@ def list_locks(token: str, logger: Optional[logging.Logger] = None) -> List[Dict
         return []
 
 
+def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.Logger] = None) -> Dict[str, Optional[Union[str, int]]]:
+    """
+    Получает детальную информацию о состоянии замка.
+
+    Args:
+        token: access_token для доступа к API.
+        lock_id: Идентификатор замка.
+        logger: Логгер для записи информации.
+
+    Returns:
+        Словарь с деталями:
+        {
+            "battery": int (уровень заряда) или None,
+            "status": "Online" | "Offline" или None,
+            "last_action": str (описание последнего действия) или None
+        }
+    """
+    details = {
+        "battery": None,
+        "status": None,
+        "last_action": None
+    }
+
+    # 1. Получаем уровень заряда и статус сети
+    try:
+        url_detail = "https://euapi.ttlock.com/v3/lock/detail"
+        data_detail = {
+            "clientId": TTLOCK_CLIENT_ID,
+            "accessToken": token,
+            "lockId": lock_id,
+            "date": int(time.time() * 1000)
+        }
+        response = requests.get(url_detail, params=data_detail, verify=False, timeout=10)
+        response_data = response.json()
+        if logger:
+            logger.debug(f"Ответ lock/detail: {response.text}")
+
+        if response_data.get("errcode") == 0:
+            details["battery"] = response_data.get("electricQuantity")
+            # Для замков с WiFi-модулем, 1 = Online
+            network_status = response_data.get("networkStatus")
+            details["status"] = "Online" if network_status == 1 else "Offline"
+        else:
+            if logger:
+                logger.error(f"Ошибка получения деталей замка: {response_data.get('errmsg', 'Unknown error')}")
+    except Exception as e:
+        if logger:
+            logger.error(f"Исключение при запросе деталей замка: {e}")
+
+    # 2. Получаем последнюю запись из журнала
+    try:
+        url_records = "https://euapi.ttlock.com/v3/lockRecord/list"
+        data_records = {
+            "clientId": TTLOCK_CLIENT_ID,
+            "accessToken": token,
+            "lockId": lock_id,
+            "pageNo": 1,
+            "pageSize": 1, # Берем только одну, самую свежую запись
+            "date": int(time.time() * 1000)
+        }
+        response = requests.get(url_records, params=data_records, verify=False, timeout=10)
+        response_data = response.json()
+        if logger:
+            logger.debug(f"Ответ lockRecord/list: {response.text}")
+
+        if response_data.get("list"):
+            latest_record = response_data["list"][0]
+            record_type = latest_record.get("recordType")
+            # Простое сопоставление для понятности
+            if "unlock" in record_type.lower():
+                details["last_action"] = "Открыто"
+            elif "lock" in record_type.lower():
+                details["last_action"] = "Закрыто"
+            else:
+                details["last_action"] = record_type
+        else:
+            if logger:
+                logger.warning("Не удалось получить записи из журнала для определения статуса (открыт/закрыт).")
+
+    except Exception as e:
+        if logger:
+            logger.error(f"Исключение при запросе журнала замка: {e}")
+
+    return details
+
+
 def get_lock_status(token, lock_id, logger=None):
     """
     Получает статус замка с указанным идентификатором.

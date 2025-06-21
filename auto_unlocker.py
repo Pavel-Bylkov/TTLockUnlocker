@@ -138,11 +138,21 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
         last_error = response.get('errmsg', 'Неизвестная ошибка') if response else 'Ответ от API не получен'
         logger.error(f"Попытка #{attempt} не удалась: {last_error}")
 
+        # Собираем детальную информацию о замке для логов
+        details_msg = ""
+        details = ttlock_api.get_lock_status_details(token, lock_id, logger)
+        if any(details.values()):
+            status = details.get('status', 'N/A')
+            battery = details.get('battery', 'N/A')
+            last_action = details.get('last_action', 'N/A')
+            details_msg = f"<br>  - Детали: Сеть <b>{status}</b>, Заряд <b>{battery}%</b>, Посл. действие: <b>{last_action}</b>"
+            logger.info(f"Дополнительная информация о замке: Сеть={status}, Заряд={battery}%, Посл. действие={last_action}")
+
         # Отправляем уведомление в телеграм о каждой неудаче
         send_telegram_message(
             telegram_token,
             telegram_chat_id,
-            f"⚠️ <b>Попытка #{attempt} ({failure_msg_part}) не удалась.</b><br>Ошибка: {last_error}",
+            f"⚠️ <b>Попытка #{attempt} ({failure_msg_part}) не удалась.</b><br>Ошибка: {last_error}{details_msg}",
             logger
         )
 
