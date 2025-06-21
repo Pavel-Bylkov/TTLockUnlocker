@@ -8,17 +8,20 @@ import schedule
 import pytz
 from datetime import tzinfo
 import telegram_utils
+import importlib
 
 @pytest.fixture(autouse=True)
-def setup_env(monkeypatch):
-    """Настройка окружения для всех тестов."""
+def setup_and_reload(monkeypatch):
+    """Настройка окружения и перезагрузка модуля для каждого теста."""
     monkeypatch.setenv('TELEGRAM_BOT_TOKEN', 'test_token')
     monkeypatch.setenv('TELEGRAM_CHAT_ID', '123456')
     monkeypatch.setenv('TTLOCK_LOCK_ID', 'test_lock_id')
     monkeypatch.setenv('CONFIG_PATH', 'config.json')
-    monkeypatch.setattr(auto_unlocker, 'AUTHORIZED_CHAT_ID', '123456')
-    monkeypatch.setattr(auto_unlocker, 'BOT_TOKEN', 'test_token')
-    monkeypatch.setattr(auto_unlocker, 'TTLOCK_LOCK_ID', 'test_lock_id')
+    
+    # Перезагружаем модули, чтобы они подхватили переменные окружения
+    importlib.reload(auto_unlocker)
+    importlib.reload(telegram_utils)
+    
     # Сбрасываем планировщик перед каждым тестом
     schedule.clear()
 
@@ -501,7 +504,85 @@ def test_is_unlock_time_no_schedule_for_day(mock_logger):
     assert auto_unlocker.is_unlock_time(now, None, [], mock_logger) is False
 
 @patch('telegram_utils.load_config')
-def test_setup_schedule(mock_load_config):
+@patch('pytz.timezone')
+@patch('auto_unlocker.datetime')
+@patch('auto_unlocker.ttlock_api.get_token', return_value="test_token")
+@patch('auto_unlocker.ttlock_api.unlock_lock')
+@patch('telegram_utils.send_telegram_message')
+def test_job_unlocks_on_schedule(mock_send, mock_unlock, mock_get_token, mock_datetime, mock_timezone, mock_load_config, mock_logger):
+    """Тест: `job` успешно открывает замок в правильное время."""
+    mock_load_config.return_value = {
+        "schedule_enabled": True, 
+        "timezone": "Asia/Novosibirsk",
+        "open_times": {"Monday": "10:00"},
+        "breaks": {}
+    }
+    mock_tz = MagicMock()
+    mock_timezone.return_value = mock_tz
+    mock_now = datetime(2023, 10, 30, 10, 0) # Понедельник 10:00
+    mock_datetime.now.return_value = mock_now
+    
+    # Мокаем `astimezone` и `strftime`, чтобы вернуть корректные значения для проверки
+    astimezone_mock = MagicMock()
+    astimezone_mock.strftime.side_effect = lambda fmt: "10:00" if fmt == "%H:%M" else "Monday"
+    mock_now.astimezone.return_value = astimezone_mock
+
+    mock_unlock.return_value = {"errcode": 0, "attempt": 1}
+
+    auto_unlocker.job()
+
+    mock_unlock.assert_called_once()
+    mock_send.assert_called_with(
+        'test_token', '123456', 
+        'Замок успешно открыт (попытка 1)',
+        mock_logger
+    )
+
+@patch('telegram_utils.load_config')
+@patch('pytz.timezone')
+@patch('auto_unlocker.datetime')
+@patch('auto_unlocker.ttlock_api.unlock_lock')
+def test_job_does_not_unlock_off_schedule(mock_unlock, mock_datetime, mock_timezone, mock_load_config, mock_logger):
+    """Тест: `job` не открывает замок в неправильное время."""
+    mock_load_config.return_value = {
+        "schedule_enabled": True, 
+        "timezone": "Asia/Novosibirsk",
+        "open_times": {"Monday": "10:00"},
+        "breaks": {}
+    }
+    mock_tz = MagicMock()
+    mock_timezone.return_value = mock_tz
+    mock_now = datetime(2023, 10, 30, 11, 0) # Понедельник 11:00
+    mock_datetime.now.return_value = mock_now
+    astimezone_mock = MagicMock()
+    astimezone_mock.strftime.side_effect = lambda fmt: "11:00" if fmt == "%H:%M" else "Monday"
+    mock_now.astimezone.return_value = astimezone_mock
+
+    auto_unlocker.job()
+    mock_unlock.assert_not_called()
+
+@patch('telegram_utils.load_config', return_value={"schedule_enabled": False})
+@patch('auto_unlocker.ttlock_api.unlock_lock')
+def test_job_does_not_unlock_when_disabled(mock_unlock, mock_load_config, mock_logger):
+    """Тест: `job` не открывает замок, если расписание выключено."""
+    auto_unlocker.job()
+    mock_unlock.assert_not_called()
+
+@patch('auto_unlocker.setup_schedule')
+@patch('auto_unlocker.schedule')
+@patch('time.sleep', side_effect=InterruptedError) # Для выхода из цикла
+def test_main_loop(mock_sleep, mock_schedule, mock_setup_schedule):
+    """Тест: главный цикл вызывает `setup_schedule` и `schedule.run_pending`."""
+    with pytest.raises(InterruptedError):
+        auto_unlocker.main()
+    
+    mock_setup_schedule.assert_called_once()
+    mock_schedule.run_pending.assert_called()
+    mock_sleep.assert_called_with(1)
+
+@patch('telegram_utils.load_config')
+@patch('schedule.every')
+def test_setup_schedule(mock_every, mock_load_config):
     """Тест: правильная настройка расписания."""
     mock_load_config.return_value = {
         "schedule_enabled": True,
@@ -509,17 +590,16 @@ def test_setup_schedule(mock_load_config):
         "breaks": {}
     }
     
+    # Мок для цепочки вызовов schedule.every().monday.at(...)
+    mock_day = MagicMock()
+    mock_every.return_value = mock_day
+    
     auto_unlocker.setup_schedule()
     
-    jobs = schedule.get_jobs()
-    assert len(jobs) == 2 # Только для Пн и Вт
-    
-    job_times = {job.next_run.strftime("%H:%M") for job in jobs}
-    assert "10:00" in job_times
-    assert "11:00" in job_times
-
-    days = {job.unit for job in jobs}
-    assert "weeks" in days
+    # Проверяем, что были вызовы для Пн и Вт, но не для Ср
+    mock_day.monday.at.assert_called_with("10:00")
+    mock_day.tuesday.at.assert_called_with("11:00")
+    mock_day.wednesday.at.assert_not_called()
 
 @patch('auto_unlocker.setup_schedule')
 @patch('auto_unlocker.schedule')

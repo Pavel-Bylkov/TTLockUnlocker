@@ -50,6 +50,11 @@ SMTP_PORT = os.getenv("SMTP_PORT")
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+AUTHORIZED_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+TTLOCK_LOCK_ID = os.getenv("TTLOCK_LOCK_ID")
+CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
+
 REQUIRED_ENV_VARS = [
     'TTLOCK_CLIENT_ID',
     'TTLOCK_CLIENT_SECRET',
@@ -83,8 +88,6 @@ LOCK_ID = None
 
 # Глобальная переменная для хранения смещения времени на текущий день
 TIME_SHIFT = None
-
-CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
 
 LOG_FILENAME = "logs/auto_unlocker.log"
 os.makedirs("logs", exist_ok=True)
