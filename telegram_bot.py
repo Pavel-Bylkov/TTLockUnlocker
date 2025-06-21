@@ -104,14 +104,14 @@ def save_blocked_chat_ids(blocked_set):
     try:
         with open(BLOCKED_CHAT_IDS_FILE, 'w', encoding='utf-8') as f:
             json.dump(list(blocked_set), f, ensure_ascii=False, indent=2)
-        log_message(logger, "INFO", f"Список заблокированных chat_id сохранён в {BLOCKED_CHAT_IDS_FILE}")
+        logger.info(f"Список заблокированных chat_id сохранён в {BLOCKED_CHAT_IDS_FILE}")
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка сохранения {BLOCKED_CHAT_IDS_FILE}: {e}")
+        logger.error(f"Ошибка сохранения {BLOCKED_CHAT_IDS_FILE}: {e}")
 
 def send_message(update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> None:
     """
     Отправляет сообщение в Telegram с обработкой ошибок.
-    
+
     Args:
         update: Объект Update
         text: Текст сообщения
@@ -121,16 +121,16 @@ def send_message(update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> 
     try:
         # Заменяем <br> на \n
         text = text.replace("<br>", "\n")
-        log_message(logger, "DEBUG", f"Отправка сообщения пользователю {update.effective_chat.id}")
+        logger.debug(f"Отправка сообщения пользователю {update.effective_chat.id}")
         update.message.reply_text(text, parse_mode=parse_mode, **kwargs)
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка отправки сообщения: {e}")
-        log_message(logger, "ERROR", traceback.format_exc())
+        logger.error(f"Ошибка отправки сообщения: {e}")
+        logger.error(traceback.format_exc())
         # Пробуем отправить без форматирования
         try:
             update.message.reply_text(text, parse_mode=None, **kwargs)
         except Exception as e:
-            log_message(logger, "ERROR", f"Ошибка отправки сообщения без форматирования: {e}")
+            logger.error(f"Ошибка отправки сообщения без форматирования: {e}")
 
 def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     """
@@ -139,13 +139,13 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     try:
         if not os.path.exists(log_path):
             return "Лог-файл не найден."
-            
+
         with open(log_path, "r", encoding="utf-8") as f:
             lines = f.readlines()[-10:]  # Берем последние 10 строк
-        
+
         # Фильтруем пустые строки и удаляем лишние пробелы
         non_empty_lines = [line.strip() for line in lines if line.strip()]
-        
+
         # Заменяем дни недели
         days_map = {
             "monday": "Понедельник",
@@ -156,33 +156,33 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
             "saturday": "Суббота",
             "sunday": "Воскресенье"
         }
-        
+
         # Применяем замену дней недели к каждой строке
         processed_lines = []
         for line in non_empty_lines:
             for en, ru in days_map.items():
                 line = line.replace(en, ru)
             processed_lines.append(line)
-        
+
         return f"<b>Последние логи сервиса:</b>\n<code>{chr(10).join(processed_lines)}</code>"
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка чтения логов: {e}")
+        logger.error(f"Ошибка чтения логов: {e}")
         return f"Ошибка чтения логов: {e}"
 
 def logs(update, context):
     """
     Показывает последние записи из логов сервиса автооткрытия.
     """
-    log_message(logger, "INFO", f"Получена команда /logs от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /logs от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
-    
+
     try:
         message = format_logs()
         send_message(update, message)
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка при получении логов: {e}")
+        logger.error(f"Ошибка при получении логов: {e}")
         send_message(update, f"Ошибка при получении логов: {e}")
 
 def setemail(update, context) -> int:
@@ -191,7 +191,7 @@ def setemail(update, context) -> int:
     """
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         return ConversationHandler.END
-        
+
     send_message(update,
         "Введите email для получения уведомлений о критических ошибках:"
     )
@@ -203,15 +203,15 @@ def setemail_value(update, context) -> int:
     """
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         return ConversationHandler.END
-        
+
     email = update.message.text.strip()
-    
+
     # Простая проверка формата email
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         send_message(update, "Некорректный формат email. Попробуйте еще раз.")
         return SETEMAIL_VALUE
-        
-    log_message(logger, "DEBUG", f"Начинаю запись EMAIL_TO={email} в {ENV_PATH}")
+
+    logger.debug(f"Начинаю запись EMAIL_TO={email} в {ENV_PATH}")
     try:
         with open(ENV_PATH, 'r') as f:
             lines = f.readlines()
@@ -248,12 +248,12 @@ def do_test_email(update, context):
         return
 
     send_message(update, "Отправляю тестовое email-сообщение...")
-    
+
     success = send_email_notification(
         subject="Тестовое уведомление от TTLock Bot",
         body="Это тестовое сообщение для проверки настроек отправки email."
     )
-    
+
     if success:
         send_message(update, "✅ Сообщение успешно отправлено!")
     else:
@@ -263,15 +263,14 @@ def start(update, context):
     """
     Обрабатывает команду /start. Приветствие и краткая инструкция.
     """
-    log_message(logger, "INFO", f"Получена команда /start от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /start от chat_id={update.effective_chat.id}")
     menu(update, context)
 
 def setchat(update, context):
     """
     Запрашивает у пользователя кодовое слово для смены chat_id.
     """
-    log_message(logger, "DEBUG", f"Вход в setchat, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
-    log_message(logger, "INFO", f"Получена команда /setchat от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /setchat от chat_id={update.effective_chat.id}")
     blocked = context.bot_data.get('blocked_chat_ids', set())
     blocked.update(BLOCKED_CHAT_IDS)
     if update.effective_chat.id in blocked:
@@ -284,33 +283,37 @@ def check_codeword(update, context):
     """
     Проверяет введённое кодовое слово. Если верно — предлагает подтвердить смену chat_id.
     """
-    log_message(logger, "DEBUG", f"check_codeword вызван с update: {update}")
-    log_message(logger, "DEBUG", f"Вход в check_codeword, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
     chat_id = update.effective_chat.id
+    user_input = update.message.text.strip()
+    logger.debug(f"check_codeword: chat_id={chat_id} ввел: '{user_input}'")
+
     bot_data = context.bot_data
     blocked = bot_data.setdefault('blocked_chat_ids', set())
     blocked.update(BLOCKED_CHAT_IDS)
     attempts = bot_data.setdefault('codeword_attempts', {})
-    log_message(logger, "DEBUG", f"[check_codeword] Вход. chat_id={chat_id}, text='{update.message.text.strip()}'")
+
     if chat_id in blocked:
         send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
         return ConversationHandler.END
-    if update.message.text.strip() == CODEWORD:
-        log_message(logger, "DEBUG", f"Кодовое слово верно. chat_id={update.message.chat_id}")
+
+    if user_input == CODEWORD:
+        logger.debug(f"Кодовое слово верно. chat_id={chat_id}")
         send_message(update, "Кодовое слово верно! Подтвердите смену получателя (да/нет):", reply_markup=ReplyKeyboardRemove())
         context.user_data['new_chat_id'] = update.message.chat_id
         attempts.pop(chat_id, None)
         return CONFIRM_CHANGE
     else:
         attempts[chat_id] = attempts.get(chat_id, 0) + 1
-        log_message(logger, "DEBUG", f"Неверное кодовое слово. Попытка {attempts[chat_id]} из 5 для chat_id={chat_id}")
+        logger.debug(f"Неверное кодовое слово. Попытка {attempts[chat_id]} из 5 для chat_id={chat_id}")
+
         if attempts[chat_id] >= 5:
             blocked.add(chat_id)
             BLOCKED_CHAT_IDS.add(chat_id)
             save_blocked_chat_ids(BLOCKED_CHAT_IDS)
-            log_message(logger, "INFO", f"chat_id={chat_id} заблокирован за 5 неверных попыток кодового слова (сохранено)")
+            logger.info(f"chat_id={chat_id} заблокирован за 5 неверных попыток кодового слова.")
             send_message(update, "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.")
             return ConversationHandler.END
+
         send_message(update, f"Неверное кодовое слово. Осталось попыток: {5 - attempts[chat_id]}", reply_markup=ReplyKeyboardRemove())
         return ASK_CODEWORD
 
@@ -318,19 +321,20 @@ def confirm_change(update, context):
     """
     Подтверждает смену chat_id, обновляет .env и перезапускает auto_unlocker (если возможно).
     """
-    log_message(logger, "DEBUG", f"Вход в confirm_change, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
-    log_message(logger, "DEBUG", f"confirm_change: ответ пользователя '{update.message.text}'")
-    if update.message.text.lower() == 'да':
+    user_response = update.message.text.lower()
+    logger.debug(f"confirm_change: chat_id={update.effective_chat.id}, ответ='{user_response}'")
+
+    if user_response == 'да':
         send_message(update, "✅ Кодовое слово верно. Начинаю смену получателя...", reply_markup=ReplyKeyboardRemove())
         new_chat_id = str(context.user_data['new_chat_id'])
-        log_message(logger, "INFO", f"ПРОЦЕДУРА СМЕНЫ CHAT_ID: новый chat_id={new_chat_id}, ENV_PATH={ENV_PATH}")
+        logger.info(f"ПРОЦЕДУРА СМЕНЫ CHAT_ID: новый chat_id={new_chat_id}, ENV_PATH={ENV_PATH}")
         try:
             with open(ENV_PATH, 'r') as f:
                 lines = f.readlines()
-            log_message(logger, "DEBUG", f"Прочитано {len(lines)} строк из .env")
+            logger.debug(f"Прочитано {len(lines)} строк из .env")
         except Exception as e:
             msg = f"Не удалось прочитать .env: {e}"
-            log_message(logger, "ERROR", msg)
+            logger.error(msg)
             send_message(update, msg)
             return ConversationHandler.END
         try:
@@ -340,21 +344,21 @@ def confirm_change(update, context):
                     if line.startswith('TELEGRAM_CHAT_ID='):
                         f.write(f'TELEGRAM_CHAT_ID={new_chat_id}\n')
                         found = True
-                        log_message(logger, "DEBUG", f"Заменяю строку: TELEGRAM_CHAT_ID={new_chat_id}")
+                        logger.debug(f"Заменяю строку: TELEGRAM_CHAT_ID={new_chat_id}")
                     else:
                         f.write(line)
                 if not found:
                     f.write(f'TELEGRAM_CHAT_ID={new_chat_id}\n')
-                    log_message(logger, "DEBUG", f"Добавляю строку: TELEGRAM_CHAT_ID={new_chat_id}")
-            log_message(logger, "DEBUG", "Запись в .env завершена")
-            log_message(logger, "INFO", f"Chat ID изменён на {new_chat_id} в .env")
+                    logger.debug(f"Добавляю строку: TELEGRAM_CHAT_ID={new_chat_id}")
+            logger.debug("Запись в .env завершена")
+            logger.info(f"Chat ID изменён на {new_chat_id} в .env")
             # Обновляем глобальную переменную AUTHORIZED_CHAT_ID
             global AUTHORIZED_CHAT_ID
             AUTHORIZED_CHAT_ID = new_chat_id
-            log_message(logger, "INFO", f"AUTHORIZED_CHAT_ID обновлён в памяти: {AUTHORIZED_CHAT_ID}")
+            logger.info(f"AUTHORIZED_CHAT_ID обновлён в памяти: {AUTHORIZED_CHAT_ID}")
         except Exception as e:
             msg = f"Не удалось записать .env: {e}"
-            log_message(logger, "ERROR", msg)
+            logger.error(msg)
             send_message(update, msg)
             return ConversationHandler.END
         # Пробуем перезапустить контейнер, если он есть
@@ -366,19 +370,19 @@ def confirm_change(update, context):
     else:
         send_message(update, "Операция отменена.")
         menu(update, context)
-        return ConversationHandler.END
+    return ConversationHandler.END
 
 def restart_auto_unlocker_and_notify(update, logger, message_success, message_error):
     """
     Перезапускает сервис автооткрытия и отправляет уведомление.
     """
-    log_message(logger, "DEBUG", "Пробую перезапустить сервис автооткрытия...")
+    logger.debug("Пробую перезапустить сервис автооткрытия...")
     try:
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
         container.restart()
         send_message(update, message_success)
-        log_message(logger, "INFO", "Сервис автооткрытия перезапущен после изменения конфигурации.")
+        logger.info("Сервис автооткрытия перезапущен после изменения конфигурации.")
     except Exception as e:
         send_message(update, f"{message_error}: {e}")
         log_exception(logger)
@@ -387,7 +391,7 @@ def status(update, context):
     """
     Показывает текущий статус расписания и сервиса.
     """
-    log_message(logger, "INFO", f"Получена команда /status от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /status от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
@@ -401,7 +405,7 @@ def status(update, context):
     enabled = cfg.get("schedule_enabled", True)
     open_times = cfg.get("open_times", {})
     breaks = cfg.get("breaks", {})
-    
+
     # Проверка статуса auto_unlocker
     try:
         client = docker.from_env()
@@ -416,9 +420,9 @@ def status(update, context):
         rus_status = status_map.get(container.status, container.status)
         status_str = f"<b>Сервис автооткрытия:</b> <code>{rus_status}</code>"
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка получения статуса контейнера: {e}")
+        logger.error(f"Ошибка получения статуса контейнера: {e}")
         status_str = ""
-    
+
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
@@ -427,21 +431,21 @@ def status(update, context):
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
         msg += f"{day}: {t if t else 'выключено'}\n"
-    
+
     # Только дни с перерывами
     breaks_with_values = {day: br for day, br in breaks.items() if br}
     if breaks_with_values:
         msg += "<b>Перерывы:</b>\n"
         for day, br in breaks_with_values.items():
             msg += f"{day}: {', '.join(br)}\n"
-    
+
     send_message(update, msg)
 
 def enable_schedule(update, context):
     """
     Включает расписание.
     """
-    log_message(logger, "INFO", f"Получена команда /enable_schedule от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /enable_schedule от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
@@ -456,7 +460,7 @@ def disable_schedule(update, context):
     """
     Отключает расписание.
     """
-    log_message(logger, "INFO", f"Получена команда /disable_schedule от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /disable_schedule от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
@@ -471,7 +475,7 @@ def open_lock(update, context):
     """
     Открывает замок.
     """
-    log_message(logger, "INFO", f"Получена команда /open от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /open от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
@@ -480,29 +484,29 @@ def open_lock(update, context):
         token = ttlock_api.get_token(logger)
         if not token:
             msg = "Ошибка при открытии замка: Не удалось получить токен."
-            log_message(logger, "ERROR", msg)
+            logger.error(msg)
             send_message(update, msg)
             return
 
-        log_message(logger, "DEBUG", f"Получен токен: {token}")
+        logger.debug(f"Получен токен: {token}")
         resp = ttlock_api.unlock_lock(token, TTLOCK_LOCK_ID, logger)
-        log_message(logger, "DEBUG", f"Ответ от API: {resp}")
+        logger.debug(f"Ответ от API: {resp}")
         if resp['errcode'] == 0:
             send_message(update, f"Замок <b>открыт</b>.\nПопытка: {resp['attempt']}")
         else:
             msg = f"Ошибка открытия замка: {resp.get('errmsg', 'Неизвестная ошибка')}"
-            log_message(logger, "ERROR", msg)
+            logger.error(msg)
             send_message(update, msg)
     except Exception as e:
         msg = f"Ошибка при открытии замка: {e}"
-        log_message(logger, "ERROR", msg)
+        logger.error(msg)
         send_message(update, msg)
 
 def close_lock(update, context):
     """
     Закрывает замок.
     """
-    log_message(logger, "INFO", f"Получена команда /close от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /close от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
@@ -511,29 +515,29 @@ def close_lock(update, context):
         token = ttlock_api.get_token(logger)
         if not token:
             msg = "Ошибка при закрытии замка: Не удалось получить токен."
-            log_message(logger, "ERROR", msg)
+            logger.error(msg)
             send_message(update, msg)
             return
 
-        log_message(logger, "DEBUG", f"Получен токен: {token}")
+        logger.debug(f"Получен токен: {token}")
         resp = ttlock_api.lock_lock(token, TTLOCK_LOCK_ID, logger)
-        log_message(logger, "DEBUG", f"Ответ от API: {resp}")
+        logger.debug(f"Ответ от API: {resp}")
         if resp['errcode'] == 0:
             send_message(update, f"Замок <b>закрыт</b>.\nПопытка: {resp['attempt']}")
         else:
             msg = f"Ошибка закрытия замка: {resp.get('errmsg', 'Неизвестная ошибка')}"
-            log_message(logger, "ERROR", msg)
+            logger.error(msg)
             send_message(update, msg)
     except Exception as e:
         msg = f"Ошибка при закрытии замка: {e}"
-        log_message(logger, "ERROR", msg)
+        logger.error(msg)
         send_message(update, msg)
 
 def settimezone(update, context):
     """
     Начинает процесс настройки часового пояса.
     """
-    log_message(logger, "INFO", f"Получена команда /settimezone от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /settimezone от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return ConversationHandler.END
@@ -545,7 +549,7 @@ def settimezone_apply(update, context):
     Применяет новый часовой пояс.
     """
     if DEBUG:
-        log_message(logger, "DEBUG", f"Пользователь вводит TZ: {update.message.text.strip()}")
+        logger.debug(f"Пользователь вводит TZ: {update.message.text.strip()}")
     tz = update.message.text.strip()
     try:
         # Проверяем валидность часового пояса
@@ -560,7 +564,7 @@ def settimezone_apply(update, context):
         send_message(update, "Некорректный часовой пояс. Попробуйте ещё раз.")
         return SETTIMEZONE_VALUE
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка при смене часового пояса: {e}")
+        logger.error(f"Ошибка при смене часового пояса: {e}")
         send_message(update, f"Ошибка при смене часового пояса: {e}")
         return ConversationHandler.END
 
@@ -597,7 +601,7 @@ def handle_settime_callback(update, context) -> int:
     query.edit_message_text(
         text=f"Выбран день: {query.data}\nВведите время открытия в формате ЧЧ:ММ (например, 09:00):"
     )
-    log_message(logger, "DEBUG", f"Переход в состояние SETTIME_VALUE для chat_id={update.effective_chat.id}")
+    logger.debug(f"Переход в состояние SETTIME_VALUE для chat_id={update.effective_chat.id}")
     return SETTIME_VALUE
 
 def settime_value(update, context):
@@ -605,47 +609,47 @@ def settime_value(update, context):
     Обрабатывает выбор времени открытия.
     """
     if DEBUG:
-        log_message(logger, "DEBUG", f"Пользователь вводит время: {update.message.text.strip()}")
+        logger.debug(f"Пользователь вводит время: {update.message.text.strip()}")
     time_str = update.message.text.strip()
-    
+
     # Проверяем формат времени
     if not re.match(r'^\d{1,2}:[0-5][0-9]$', time_str):
         send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
         return SETTIME_VALUE
-        
+
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
             send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
             return SETTIME_VALUE
-            
+
         # Форматируем время в формат HH:MM
         time_str = f"{hour:02d}:{minute:02d}"
-            
+
         cfg = load_config(CONFIG_PATH, logger)
         if "open_times" not in cfg:
             cfg["open_times"] = {}
-            
+
         # Сохраняем день перед очисткой состояния
         day = context.user_data["day"]
         cfg["open_times"][day] = time_str
         save_config(cfg, CONFIG_PATH, logger)
-        
+
         # Очищаем состояние
         context.user_data.pop("state", None)
         context.user_data.pop("day", None)
-        
+
         # Перезапуск auto_unlocker
         restart_auto_unlocker_and_notify(
-            update, 
-            logger, 
+            update,
+            logger,
             f"Время открытия для {day} установлено на {time_str}. \nAuto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка при установке времени: {e}")
+        logger.error(f"Ошибка при установке времени: {e}")
         send_message(update, f"Ошибка при установке времени: {e}")
         return SETTIME_VALUE
 
@@ -653,7 +657,7 @@ def setbreak(update, context):
     """
     Начинает процесс установки перерывов.
     """
-    log_message(logger, "INFO", f"Получена команда /setbreak от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /setbreak от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return ConversationHandler.END
@@ -675,7 +679,7 @@ def handle_setbreak_callback(update, context) -> int:
             [InlineKeyboardButton("Удалить", callback_data="remove_break")]
         ])
     )
-    log_message(logger, "DEBUG", f"Переход в состояние SETBREAK_ACTION для chat_id={update.effective_chat.id}")
+    logger.debug(f"Переход в состояние SETBREAK_ACTION для chat_id={update.effective_chat.id}")
     return SETBREAK_ACTION
 
 def handle_setbreak_action(update, context) -> int:
@@ -685,7 +689,7 @@ def handle_setbreak_action(update, context) -> int:
         query.edit_message_text(
             text="Введите время перерыва в формате ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00):"
         )
-        log_message(logger, "DEBUG", f"Переход в состояние SETBREAK_ADD для chat_id={update.effective_chat.id}")
+        logger.debug(f"Переход в состояние SETBREAK_ADD для chat_id={update.effective_chat.id}")
         return SETBREAK_ADD
     elif query.data == "remove_break":
         cfg = load_config(CONFIG_PATH, logger)
@@ -696,7 +700,7 @@ def handle_setbreak_action(update, context) -> int:
         query.edit_message_text(
             text="Введите время перерыва для удаления в формате ЧЧ:ММ-ЧЧ:ММ:"
         )
-        log_message(logger, "DEBUG", f"Переход в состояние SETBREAK_DEL для chat_id={update.effective_chat.id}")
+        logger.debug(f"Переход в состояние SETBREAK_DEL для chat_id={update.effective_chat.id}")
         return SETBREAK_DEL
     return ConversationHandler.END
 
@@ -704,7 +708,7 @@ def restart_auto_unlocker_cmd(update, context):
     """
     Перезапускает сервис автооткрытия по команде.
     """
-    log_message(logger, "INFO", f"Получена команда /restart_auto_unlocker от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /restart_auto_unlocker от chat_id={update.effective_chat.id}")
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
@@ -715,7 +719,7 @@ def menu(update, context):
     """
     Выводит список всех доступных команд в виде кнопок-команд.
     """
-    log_message(logger, "INFO", f"Получена команда /menu от chat_id={update.effective_chat.id}")
+    logger.info(f"Получена команда /menu от chat_id={update.effective_chat.id}")
     reply_markup = ReplyKeyboardMarkup(
         MENU_COMMANDS,
         resize_keyboard=True,
@@ -774,7 +778,7 @@ def setbreak_add(update, context):
         )
         return ConversationHandler.END
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка при добавлении перерыва: {e}")
+        logger.error(f"Ошибка при добавлении перерыва: {e}")
         send_message(update, f"Ошибка при добавлении перерыва: {e}")
         return SETBREAK_ADD
 
@@ -805,7 +809,7 @@ def setbreak_remove(update, context):
             send_message(update, "Такой перерыв не найден.")
         return ConversationHandler.END
     except Exception as e:
-        log_message(logger, "ERROR", f"Ошибка при удалении перерыва: {e}")
+        logger.error(f"Ошибка при удалении перерыва: {e}")
         send_message(update, f"Ошибка при удалении перерыва: {e}")
         return SETBREAK_DEL
 
@@ -814,9 +818,9 @@ def main():
     Точка входа: запускает Telegram-бота и обработчики команд.
     """
     try:
-        log_message(logger, "DEBUG", "Запуск Telegram-бота...")
+        logger.debug("Запуск Telegram-бота...")
         if not BOT_TOKEN:
-            log_message(logger, "ERROR", "TELEGRAM_BOT_TOKEN не задан в .env!")
+            logger.critical("TELEGRAM_BOT_TOKEN не задан в .env!")
             return
         updater = Updater(BOT_TOKEN, use_context=True)
         dp = updater.dispatcher
@@ -879,13 +883,13 @@ def main():
         ]
         for handler in handlers:
             dp.add_handler(handler)
-        log_message(logger, "INFO", "Telegram-бот успешно запущен и готов к работе.")
+        logger.info("Telegram-бот успешно запущен и готов к работе.")
         updater.start_polling()
         updater.idle()
     except Exception as e:
-        log_message(logger, "ERROR", f"Критическая ошибка при запуске бота: {e}")
+        logger.error(f"Критическая ошибка при запуске бота: {e}")
         log_exception(logger)
         raise
 
 if __name__ == '__main__':
-    main() 
+    main()
