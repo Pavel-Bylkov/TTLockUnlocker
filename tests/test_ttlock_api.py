@@ -125,7 +125,6 @@ def test_lock_lock_scenarios(mock_post, mock_sleep, mock_logger):
     """Test various scenarios for the lock_lock function."""
     _test_lock_operation(ttlock_api.lock_lock, 'закрыть', mock_post, mock_sleep, mock_logger)
 
-@pytest.mark.skip(reason="Skipping due to persistent issues with applying fixes to ttlock_api.py")
 @patch('requests.get')
 def test_list_locks_success(mock_get, mock_logger):
     """Test successful retrieval of the lock list."""
@@ -139,7 +138,6 @@ def test_list_locks_success(mock_get, mock_logger):
     mock_logger.info.assert_called_once()
     mock_logger.error.assert_not_called()
 
-@pytest.mark.skip(reason="Skipping due to persistent issues with applying fixes to ttlock_api.py")
 @patch('requests.get')
 def test_list_locks_api_error(mock_get, mock_logger):
     """Test handling of an API error when listing locks."""
@@ -152,7 +150,6 @@ def test_list_locks_api_error(mock_get, mock_logger):
     assert "Auth failed" in mock_logger.error.call_args[0][0]
     mock_get.assert_called_once()
 
-@pytest.mark.skip(reason="Skipping due to persistent issues with applying fixes to ttlock_api.py")
 @patch('requests.get', side_effect=requests.exceptions.RequestException("Network Error"))
 def test_list_locks_network_error(mock_get, mock_logger):
     """Test handling of a network error when listing locks."""
