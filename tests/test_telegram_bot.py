@@ -121,6 +121,7 @@ def test_check_codeword_incorrect_and_block(mock_update, mock_context):
         # Сначала идет сообщение о неверном коде, потом о блокировке
         assert mock_update.message.reply_text.call_count == 2
         mock_update.message.reply_text.assert_any_call("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.", parse_mode='HTML')
+        mock_update.message.reply_text.assert_any_call("Неверное кодовое слово. Осталось попыток: 0", parse_mode='HTML', reply_markup=ANY)
         mock_save.assert_called_once()
         assert chat_id_to_block in bot_module.BLOCKED_CHAT_IDS
 

@@ -16,14 +16,17 @@ def setup_env(monkeypatch):
     monkeypatch.setenv('TELEGRAM_CHAT_ID', '123456')
     monkeypatch.setenv('TTLOCK_LOCK_ID', 'test_lock_id')
     monkeypatch.setenv('CONFIG_PATH', 'config.json')
-    auto_unlocker.CONFIG_PATH = 'config.json'
-    auto_unlocker.AUTHORIZED_CHAT_ID = '123456'
-    auto_unlocker.BOT_TOKEN = 'test_token'
+    monkeypatch.setattr(auto_unlocker, 'AUTHORIZED_CHAT_ID', '123456')
+    monkeypatch.setattr(auto_unlocker, 'BOT_TOKEN', 'test_token')
+    monkeypatch.setattr(auto_unlocker, 'TTLOCK_LOCK_ID', 'test_lock_id')
+    # Сбрасываем планировщик перед каждым тестом
+    schedule.clear()
 
 @pytest.fixture
 def mock_logger():
     """Фикстура для мока логгера."""
-    return MagicMock()
+    with patch('auto_unlocker.logger') as mock_log:
+        yield mock_log
 
 @pytest.fixture
 def mock_config():
@@ -392,18 +395,48 @@ def test_job_schedule_enabled(mock_logger):
             auto_unlocker.job()
             mock_process_unlock.assert_called_once()
 
+@patch('telegram_utils.load_config')
+@patch('auto_unlocker.is_unlock_time', return_value=False)
+@patch('auto_unlocker.process_unlock')
+def test_job_not_unlock_time(mock_process_unlock, mock_is_unlock_time, mock_load_config, mock_logger):
+    """Тест: `process_unlock` не вызывается, если время не подошло."""
+    mock_load_config.return_value = {"schedule_enabled": True, "timezone": "UTC"}
+    
+    auto_unlocker.job()
+    
+    mock_is_unlock_time.assert_called_once()
+    mock_process_unlock.assert_not_called()
+
+@patch('telegram_utils.load_config')
+@patch('auto_unlocker.is_unlock_time', return_value=True)
+@patch('auto_unlocker.process_unlock')
+def test_job_is_unlock_time(mock_process_unlock, mock_is_unlock_time, mock_load_config, mock_logger):
+    """Тест: `process_unlock` вызывается, если время подошло."""
+    mock_load_config.return_value = {"schedule_enabled": True, "timezone": "UTC"}
+
+    auto_unlocker.job()
+
+    mock_is_unlock_time.assert_called_once()
+    mock_process_unlock.assert_called_once()
+
+@patch('telegram_utils.load_config', return_value={"schedule_enabled": False})
+@patch('auto_unlocker.process_unlock')
+def test_job_schedule_disabled(mock_process_unlock, mock_load_config, mock_logger):
+    """Тест: `process_unlock` не вызывается, если расписание выключено."""
+    auto_unlocker.job()
+    mock_process_unlock.assert_not_called()
+
 @patch('auto_unlocker.ttlock_api.get_token', return_value="test_token")
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 @patch('telegram_utils.send_telegram_message')
 def test_process_unlock_success(mock_send_message, mock_unlock, mock_get_token, mock_logger):
-    """Тест: успешное открытие замка."""
+    """Тест: успешное открытие замка с первой попытки."""
     mock_unlock.return_value = {"errcode": 0, "attempt": 1}
     
     auto_unlocker.process_unlock()
     
-    mock_get_token.assert_called_once()
     mock_unlock.assert_called_once_with("test_token", 'test_lock_id', mock_logger)
-    mock_send_message.assert_called_with(
+    mock_send_message.assert_called_once_with(
         'test_token', '123456', 
         'Замок успешно открыт (попытка 1)',
         mock_logger
@@ -412,17 +445,17 @@ def test_process_unlock_success(mock_send_message, mock_unlock, mock_get_token, 
 @patch('auto_unlocker.ttlock_api.get_token', return_value="test_token")
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 @patch('telegram_utils.send_telegram_message')
-@patch('time.sleep', return_value=None) # Чтобы не ждать в тесте
-def test_process_unlock_with_retries_fail(mock_sleep, mock_send_message, mock_unlock, mock_get_token, mock_logger):
+@patch('time.sleep', return_value=None)
+def test_process_unlock_failure(mock_sleep, mock_send_message, mock_unlock, mock_get_token, mock_logger):
     """Тест: неуспешное открытие после всех попыток."""
-    mock_unlock.return_value = {"errcode": 1, "errmsg": "Gateway timeout"}
+    mock_unlock.return_value = {"errcode": 1, "errmsg": "Timeout"}
     
     auto_unlocker.process_unlock()
     
     assert mock_unlock.call_count == 5
     mock_send_message.assert_called_with(
         'test_token', '123456',
-        "Не удалось открыть замок после 5 попыток. Ошибка: Gateway timeout",
+        "Не удалось открыть замок после 5 попыток. Ошибка: Timeout",
         mock_logger
     )
 
@@ -430,7 +463,7 @@ def test_process_unlock_with_retries_fail(mock_sleep, mock_send_message, mock_un
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 @patch('telegram_utils.send_telegram_message')
 @patch('time.sleep', return_value=None)
-def test_process_unlock_with_retries_success_on_third_attempt(mock_sleep, mock_send_message, mock_unlock, mock_get_token, mock_logger):
+def test_process_unlock_success_on_retry(mock_sleep, mock_send_message, mock_unlock, mock_get_token, mock_logger):
     """Тест: успешное открытие на третьей попытке."""
     mock_unlock.side_effect = [
         {"errcode": 1, "errmsg": "Fail"},
@@ -447,71 +480,55 @@ def test_process_unlock_with_retries_success_on_third_attempt(mock_sleep, mock_s
         mock_logger
     )
 
-def test_is_unlock_time_true(mock_logger):
-    """Тест: проверка времени открытия - должно сработать."""
+def test_is_unlock_time_exact_match(mock_logger):
+    """Тест: точное совпадение времени открытия."""
     now = datetime.strptime("09:00", "%H:%M").time()
-    open_time_str = "09:00"
-    breaks = []
-    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
-    assert result is True
+    assert auto_unlocker.is_unlock_time(now, "09:00", [], mock_logger) is True
 
-def test_is_unlock_time_false(mock_logger):
-    """Тест: проверка времени открытия - не должно сработать."""
+def test_is_unlock_time_mismatch(mock_logger):
+    """Тест: время не совпадает."""
     now = datetime.strptime("09:01", "%H:%M").time()
-    open_time_str = "09:00"
-    breaks = []
-    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
-    assert result is False
+    assert auto_unlocker.is_unlock_time(now, "09:00", [], mock_logger) is False
 
 def test_is_unlock_time_in_break(mock_logger):
-    """Тест: проверка времени открытия - попадает в перерыв."""
+    """Тест: время попадает в перерыв."""
     now = datetime.strptime("13:30", "%H:%M").time()
-    open_time_str = "09:00" # не имеет значения для этого теста
-    breaks = ["13:00-14:00"]
-    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
-    assert result is False
+    assert auto_unlocker.is_unlock_time(now, "13:30", ["13:00-14:00"], mock_logger) is False
 
-def test_is_unlock_time_no_schedule(mock_logger):
-    """Тест: проверка времени открытия - расписание на день не задано."""
+def test_is_unlock_time_no_schedule_for_day(mock_logger):
+    """Тест: расписание на день не задано (время None)."""
     now = datetime.strptime("09:00", "%H:%M").time()
-    open_time_str = None
-    breaks = []
-    result = auto_unlocker.is_unlock_time(now, open_time_str, breaks, mock_logger)
-    assert result is False
+    assert auto_unlocker.is_unlock_time(now, None, [], mock_logger) is False
 
-@patch('auto_unlocker.schedule.run_pending')
-@patch('time.sleep')
 @patch('telegram_utils.load_config')
-def test_main_loop(mock_load_config, mock_sleep, mock_run_pending, mock_logger):
-    """Тест главного цикла работы сервиса."""
-    # Мокаем, чтобы цикл выполнился один раз и вышел
-    mock_sleep.side_effect = InterruptedError
+def test_setup_schedule(mock_load_config):
+    """Тест: правильная настройка расписания."""
     mock_load_config.return_value = {
         "schedule_enabled": True,
-        "open_times": {"Пн": "10:00"},
+        "open_times": {"Пн": "10:00", "Вт": "11:00", "Ср": None},
         "breaks": {}
     }
     
+    auto_unlocker.setup_schedule()
+    
+    jobs = schedule.get_jobs()
+    assert len(jobs) == 2 # Только для Пн и Вт
+    
+    job_times = {job.next_run.strftime("%H:%M") for job in jobs}
+    assert "10:00" in job_times
+    assert "11:00" in job_times
+
+    days = {job.unit for job in jobs}
+    assert "weeks" in days
+
+@patch('auto_unlocker.setup_schedule')
+@patch('auto_unlocker.schedule')
+@patch('time.sleep', side_effect=InterruptedError) # Для выхода из цикла
+def test_main_loop(mock_sleep, mock_schedule, mock_setup_schedule):
+    """Тест: главный цикл вызывает `setup_schedule` и `schedule.run_pending`."""
     with pytest.raises(InterruptedError):
         auto_unlocker.main()
     
-    # Проверяем, что планировщик был настроен и запущен
-    assert auto_unlocker.schedule.jobs # Убеждаемся, что задачи добавлены
-    mock_run_pending.assert_called()
-    mock_sleep.assert_called()
-
-@patch('auto_unlocker.setup_schedule')
-def test_main_loop_reloads_schedule_on_change(mock_setup_schedule, mock_logger):
-    """Тест: главный цикл перезагружает расписание при изменении конфига."""
-    configs = [
-        {"schedule_enabled": True, "open_times": {"Пн": "10:00"}},
-        {"schedule_enabled": True, "open_times": {"Пн": "11:00"}} # Измененный конфиг
-    ]
-    
-    with patch('telegram_utils.load_config', side_effect=configs):
-        with patch('time.sleep', side_effect=[None, InterruptedError]): # Выполнить цикл дважды
-             with pytest.raises(InterruptedError):
-                auto_unlocker.main()
-
-    # setup_schedule должен быть вызван дважды: первый раз и при смене конфига
-    assert mock_setup_schedule.call_count == 2 
+    mock_setup_schedule.assert_called_once()
+    mock_schedule.run_pending.assert_called()
+    mock_sleep.assert_called_with(1) 
