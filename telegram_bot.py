@@ -28,9 +28,6 @@ load_dotenv(ENV_PATH)
 # Уровень отладки
 DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true', 'yes')
 
-if DEBUG:
-    print(f"[DEBUG] Используется путь к .env: {ENV_PATH}")
-
 # Настройка логирования
 os.makedirs('logs', exist_ok=True)
 logger = logging.getLogger("telegram_bot")
@@ -46,6 +43,9 @@ logger.addHandler(handler)
 console = logging.StreamHandler(sys.stdout)
 console.setFormatter(formatter)
 logger.addHandler(console)
+
+if DEBUG:
+    logger.debug(f"Используется путь к .env: {ENV_PATH}")
 
 CODEWORD = os.getenv('TELEGRAM_CODEWORD', 'secretword')
 AUTO_UNLOCKER_CONTAINER = os.getenv('AUTO_UNLOCKER_CONTAINER', 'auto_unlocker_1')
@@ -85,7 +85,7 @@ REQUIRED_ENV_VARS = [
 ]
 missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
 if missing_vars:
-    print(f"[ERROR] Не заданы обязательные переменные окружения: {', '.join(missing_vars)}. Проверьте .env файл!")
+    logger.critical(f"Не заданы обязательные переменные окружения: {', '.join(missing_vars)}. Проверьте .env файл!")
     exit(1)
 
 # Глобальный set для блокировки chat_id, которые 5 раз ввели неверный код
@@ -95,10 +95,10 @@ BLOCKED_CHAT_IDS_FILE = 'blocked_chat_ids.json'
 try:
     with open(BLOCKED_CHAT_IDS_FILE, 'r', encoding='utf-8') as f:
         BLOCKED_CHAT_IDS = set(json.load(f))
-        print(f"[INFO] Загружено {len(BLOCKED_CHAT_IDS)} заблокированных chat_id из {BLOCKED_CHAT_IDS_FILE}")
+        logger.info(f"Загружено {len(BLOCKED_CHAT_IDS)} заблокированных chat_id из {BLOCKED_CHAT_IDS_FILE}")
 except Exception:
     BLOCKED_CHAT_IDS = set()
-    print(f"[INFO] Файл {BLOCKED_CHAT_IDS_FILE} не найден или пуст, блокировка не загружена.")
+    logger.info(f"Файл {BLOCKED_CHAT_IDS_FILE} не найден или пуст, блокировка не загружена.")
 
 def save_blocked_chat_ids(blocked_set):
     try:
