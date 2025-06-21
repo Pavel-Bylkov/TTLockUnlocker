@@ -8,7 +8,7 @@ from telegram_bot import (
     settime, handle_settime_callback, settime_value,
     setbreak, handle_setbreak_callback, handle_setbreak_action, setbreak_add, setbreak_remove,
     settimezone, settimezone_apply,
-    setemail, setemail_value, test_email,
+    setemail, setemail_value, test_email_command,
     restart_auto_unlocker_cmd,
     ASK_CODEWORD, CONFIRM_CHANGE,
     SETTIME_DAY, SETTIME_VALUE,
@@ -50,7 +50,7 @@ def mock_update():
     update.effective_chat = MagicMock(spec=Chat, id=123456)
     update.message = MagicMock(spec=Message, chat_id=123456, text="test")
     update.message.reply_text = MagicMock()
-    
+
     update.callback_query = MagicMock(spec=CallbackQuery)
     update.callback_query.answer = MagicMock()
     update.callback_query.edit_message_text = MagicMock()
@@ -94,9 +94,9 @@ def test_setchat_blocked(mock_update, mock_context):
     blocked_id = 789
     mock_update.effective_chat.id = blocked_id
     bot_module.BLOCKED_CHAT_IDS.add(blocked_id)
-    
+
     result = setchat(mock_update, mock_context)
-    
+
     assert result == ConversationHandler.END
     mock_update.message.reply_text.assert_called_with("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.", parse_mode='HTML')
 
@@ -114,13 +114,13 @@ def test_check_codeword_incorrect_and_block(mock_update, mock_context):
     mock_update.effective_chat.id = chat_id_to_block
     mock_update.message.text = 'wrong'
     mock_context.bot_data = {'codeword_attempts': {chat_id_to_block: 4}}
-    
+
     with patch('telegram_bot.save_blocked_chat_ids') as mock_save:
         result = check_codeword(mock_update, mock_context)
         assert result == ConversationHandler.END
         # При 5-й неверной попытке отправляется только сообщение о блокировке
         mock_update.message.reply_text.assert_called_once_with(
-            "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.", 
+            "⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.",
             parse_mode='HTML'
         )
         mock_save.assert_called_once()
@@ -133,12 +133,12 @@ def test_confirm_change_yes(mock_restart, mock_open_file, mock_update, mock_cont
     mock_update.message.text = 'да'
     new_id = '654321'
     mock_context.user_data['new_chat_id'] = new_id
-    
+
     result = confirm_change(mock_update, mock_context)
-    
+
     handle = mock_open_file()
     handle.write.assert_any_call(f'TELEGRAM_CHAT_ID={new_id}\n')
-    
+
     mock_restart.assert_called_once()
     assert bot_module.AUTHORIZED_CHAT_ID == new_id
     assert result == ConversationHandler.END
@@ -158,11 +158,11 @@ def test_status_command(mock_docker, mock_update, mock_context):
     mock_container = MagicMock()
     mock_container.status = "running"
     mock_docker.return_value.containers.get.return_value = mock_container
-    
+
     config_data = json.dumps({"timezone": "Asia/Tomsk", "schedule_enabled": True, "open_times": {"Пн": "09:00"}, "breaks": {}})
     with patch('builtins.open', mock_open(read_data=config_data)):
         status(mock_update, mock_context)
-    
+
     mock_update.message.reply_text.assert_called_once()
     text = mock_update.message.reply_text.call_args[0][0]
     assert "<b>Статус расписания</b>" in text
@@ -177,7 +177,7 @@ def test_logs_command(mock_update, mock_context):
     with patch('builtins.open', mock_open(read_data=log_data)):
         with patch('os.path.exists', return_value=True):
             logs(mock_update, mock_context)
-    
+
     mock_update.message.reply_text.assert_called_once()
     text = mock_update.message.reply_text.call_args[0][0]
     assert "<b>Последние логи сервиса:</b>" in text
@@ -257,7 +257,7 @@ def test_settime_value_valid(mock_restart, mock_save_config, mock_update, mock_c
     mock_context.user_data['day'] = "Пн"
     with patch('telegram_bot.load_config', return_value={"open_times": {}}) as mock_load:
         result = settime_value(mock_update, mock_context)
-    
+
         assert result == ConversationHandler.END
         mock_load.assert_called_once()
         mock_save_config.assert_called_once_with({'open_times': {'Пн': '09:30'}}, bot_module.CONFIG_PATH, bot_module.logger)
@@ -304,7 +304,7 @@ def test_setbreak_add_valid(mock_restart, mock_save_config, mock_update, mock_co
     mock_context.user_data['day'] = "Вт"
     with patch('telegram_bot.load_config', return_value={"breaks": {}}) as mock_load:
         result = setbreak_add(mock_update, mock_context)
-    
+
         assert result == ConversationHandler.END
         mock_load.assert_called_once()
         mock_save_config.assert_called_once_with({'breaks': {'Вт': ['13:00-14:00']}}, bot_module.CONFIG_PATH, bot_module.logger)
@@ -346,7 +346,7 @@ def test_setemail_value(mock_restart, mock_open_file, mock_update, mock_context)
     """Тест: установка email."""
     mock_update.message.text = "new@mail.com"
     result = setemail_value(mock_update, mock_context)
-    
+
     handle = mock_open_file()
     handle.write.assert_any_call('EMAIL_TO=new@mail.com\n')
     mock_restart.assert_called_once()
@@ -355,7 +355,7 @@ def test_setemail_value(mock_restart, mock_open_file, mock_update, mock_context)
 @patch('telegram_utils.send_email_notification', return_value=True)
 def test_test_email_success(mock_send_email, mock_update, mock_context):
     """Тест: успешная отправка тестового email."""
-    test_email(mock_update, mock_context)
+    test_email_command(mock_update, mock_context)
     mock_send_email.assert_called_once()
     mock_update.message.reply_text.assert_any_call("✅ Сообщение успешно отправлено!")
 
