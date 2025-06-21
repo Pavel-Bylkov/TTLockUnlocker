@@ -5,18 +5,15 @@ Telegram-бот для управления рассылкой уведомле�
 Для отладки можно установить переменную окружения DEBUG=1 (или true/True) — тогда будет подробный вывод в консоль.
 """
 import logging
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler
 import os
 import docker
 from dotenv import load_dotenv
 import json
-import requests
-import time
 import ttlock_api
 from logging.handlers import TimedRotatingFileHandler
 import sys
-from datetime import datetime
 import pytz
 import traceback
 from telegram_utils import send_telegram_message, is_authorized, log_exception, send_email_notification, log_message, load_config, save_config
@@ -114,7 +111,7 @@ def save_blocked_chat_ids(blocked_set):
 def send_message(update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> None:
     """
     Отправляет сообщение в Telegram с обработкой ошибок.
-
+    
     Args:
         update: Объект Update
         text: Текст сообщения
@@ -142,13 +139,13 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
     try:
         if not os.path.exists(log_path):
             return "Лог-файл не найден."
-
+            
         with open(log_path, "r", encoding="utf-8") as f:
             lines = f.readlines()[-10:]  # Берем последние 10 строк
-
+        
         # Фильтруем пустые строки и удаляем лишние пробелы
         non_empty_lines = [line.strip() for line in lines if line.strip()]
-
+        
         # Заменяем дни недели
         days_map = {
             "monday": "Понедельник",
@@ -159,14 +156,14 @@ def format_logs(log_path: str = "logs/auto_unlocker.log") -> str:
             "saturday": "Суббота",
             "sunday": "Воскресенье"
         }
-
+        
         # Применяем замену дней недели к каждой строке
         processed_lines = []
         for line in non_empty_lines:
             for en, ru in days_map.items():
                 line = line.replace(en, ru)
             processed_lines.append(line)
-
+        
         return f"<b>Последние логи сервиса:</b>\n<code>{chr(10).join(processed_lines)}</code>"
     except Exception as e:
         log_message(logger, "ERROR", f"Ошибка чтения логов: {e}")
@@ -180,7 +177,7 @@ def logs(update, context):
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         send_message(update, "Нет доступа.")
         return
-
+    
     try:
         message = format_logs()
         send_message(update, message)
@@ -194,7 +191,7 @@ def setemail(update, context) -> int:
     """
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         return ConversationHandler.END
-
+        
     send_message(update,
         "Введите email для получения уведомлений о критических ошибках:"
     )
@@ -206,14 +203,14 @@ def setemail_value(update, context) -> int:
     """
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
         return ConversationHandler.END
-
+        
     email = update.message.text.strip()
-
+    
     # Простая проверка формата email
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         send_message(update, "Некорректный формат email. Попробуйте еще раз.")
         return SETEMAIL_VALUE
-
+        
     log_message(logger, "DEBUG", f"Начинаю запись EMAIL_TO={email} в {ENV_PATH}")
     try:
         with open(ENV_PATH, 'r') as f:
@@ -251,12 +248,12 @@ def test_email(update, context):
         return
 
     send_message(update, "Отправляю тестовое email-сообщение...")
-
+    
     success = send_email_notification(
         subject="Тестовое уведомление от TTLock Bot",
         body="Это тестовое сообщение для проверки настроек отправки email."
     )
-
+    
     if success:
         send_message(update, "✅ Сообщение успешно отправлено!")
     else:
@@ -404,7 +401,7 @@ def status(update, context):
     enabled = cfg.get("schedule_enabled", True)
     open_times = cfg.get("open_times", {})
     breaks = cfg.get("breaks", {})
-
+    
     # Проверка статуса auto_unlocker
     try:
         client = docker.from_env()
@@ -421,7 +418,7 @@ def status(update, context):
     except Exception as e:
         log_message(logger, "ERROR", f"Ошибка получения статуса контейнера: {e}")
         status_str = ""
-
+    
     msg = f"<b>Статус расписания</b>\n"
     msg += f"Часовой пояс: <code>{tz}</code>\n"
     msg += f"Расписание включено: <b>{'да' if enabled else 'нет'}</b>\n"
@@ -430,14 +427,14 @@ def status(update, context):
     msg += "<b>Время открытия:</b>\n"
     for day, t in open_times.items():
         msg += f"{day}: {t if t else 'выключено'}\n"
-
+    
     # Только дни с перерывами
     breaks_with_values = {day: br for day, br in breaks.items() if br}
     if breaks_with_values:
         msg += "<b>Перерывы:</b>\n"
         for day, br in breaks_with_values.items():
             msg += f"{day}: {', '.join(br)}\n"
-
+    
     send_message(update, msg)
 
 def enable_schedule(update, context):
@@ -598,45 +595,47 @@ def settime_value(update, context):
     if DEBUG:
         log_message(logger, "DEBUG", f"Пользователь вводит время: {update.message.text.strip()}")
     time_str = update.message.text.strip()
-
+    
     # Проверяем формат времени
     if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
         send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
-        return
-
+        return SETTIME_VALUE
+        
     try:
         # Проверяем валидность времени
         hour, minute = map(int, time_str.split(':'))
         if hour > 23 or minute > 59:
             send_message(update, "Некорректное время. Часы должны быть от 0 до 23, минуты от 0 до 59.")
-            return
-
+            return SETTIME_VALUE
+            
         # Форматируем время в формат HH:MM
         time_str = f"{hour:02d}:{minute:02d}"
-
+            
         cfg = load_config(CONFIG_PATH, logger)
         if "open_times" not in cfg:
             cfg["open_times"] = {}
-
+            
         # Сохраняем день перед очисткой состояния
         day = context.user_data["day"]
         cfg["open_times"][day] = time_str
         save_config(cfg, CONFIG_PATH, logger)
-
+        
         # Очищаем состояние
         context.user_data.pop("state", None)
         context.user_data.pop("day", None)
-
+        
         # Перезапуск auto_unlocker
         restart_auto_unlocker_and_notify(
-            update,
-            logger,
+            update, 
+            logger, 
             f"Время открытия для {day} установлено на {time_str}. \nAuto_unlocker перезапущен, изменения применены.",
             "Время открытия изменено, но не удалось перезапустить auto_unlocker"
         )
+        return ConversationHandler.END
     except Exception as e:
         log_message(logger, "ERROR", f"Ошибка при установке времени: {e}")
         send_message(update, f"Ошибка при установке времени: {e}")
+        return SETTIME_VALUE
 
 def setbreak(update, context):
     """
@@ -840,6 +839,7 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('settime', settime)],
                 states={
+                    SETTIME_DAY: [CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$")],
                     SETTIME_VALUE: [MessageHandler(Filters.text, settime_value)],
                 },
                 fallbacks=[],
@@ -848,6 +848,8 @@ def main():
             ConversationHandler(
                 entry_points=[CommandHandler('setbreak', setbreak)],
                 states={
+                    SETBREAK_DAY: [CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_")],
+                    SETBREAK_ACTION: [CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$")],
                     SETBREAK_ADD: [MessageHandler(Filters.text, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(Filters.text, setbreak_remove)],
                 },
@@ -862,15 +864,9 @@ def main():
                 fallbacks=[],
                 per_chat=True
             ),
-            CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$"),
-            CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_"),
-            CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$"),
         ]
         for handler in handlers:
             dp.add_handler(handler)
-        def debug_log_message(update, context):
-            log_message(logger, "DEBUG", f"Вход в debug_log_message, chat_id={update.effective_chat.id}, text='{getattr(update.message, 'text', '')}'")
-        dp.add_handler(MessageHandler(Filters.all, debug_log_message))
         log_message(logger, "INFO", "Telegram-бот успешно запущен и готов к работе.")
         updater.start_polling()
         updater.idle()
@@ -880,4 +876,4 @@ def main():
         raise
 
 if __name__ == '__main__':
-    main()
+    main() 
