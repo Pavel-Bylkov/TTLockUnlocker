@@ -176,12 +176,20 @@ def test_status_command(mock_get_token, mock_get_details, mock_update, mock_cont
         "last_action": "Открыто"
     }
 
+    # Мок для reply_text должен возвращать объект с методом edit_text
+    mock_sent_message = MagicMock()
+    mock_update.message.reply_text.return_value = mock_sent_message
+
     config_data = json.dumps({"timezone": "Asia/Tomsk", "schedule_enabled": True, "open_times": {"Пн": "09:00"}, "breaks": {}})
     with patch('telegram_bot.load_config', return_value=json.loads(config_data)):
         status(mock_update, mock_context)
 
-    mock_update.message.reply_text.assert_called_once()
-    text = mock_update.message.reply_text.call_args[0][0]
+    # Проверяем отправку временного сообщения
+    mock_update.message.reply_text.assert_called_once_with("🔍 Собираю информацию, пожалуйста, подождите...")
+
+    # Проверяем редактирование сообщения с финальным статусом
+    mock_sent_message.edit_text.assert_called_once()
+    text = mock_sent_message.edit_text.call_args[0][0]
 
     assert "<b>⚙️ Текущий статус сервиса:</b>" in text
     assert "Расписание: ✅ Включено" in text
@@ -208,30 +216,39 @@ def test_logs_command(mock_update, mock_context):
 @patch('ttlock_api.get_token', return_value=None) # Моделируем ошибку получения токена
 def test_status_command_token_error(mock_get_token, mock_update, mock_context):
     """Тест: /status при ошибке получения токена."""
+    # Мок для reply_text должен возвращать объект с методом edit_text
+    mock_sent_message = MagicMock()
+    mock_update.message.reply_text.return_value = mock_sent_message
+
     config_data = json.dumps({"timezone": "UTC", "schedule_enabled": True})
     with patch('telegram_bot.load_config', return_value=json.loads(config_data)):
         status(mock_update, mock_context)
 
-    mock_update.message.reply_text.assert_called_once()
-    text = mock_update.message.reply_text.call_args[0][0]
+    # Проверяем отправку временного сообщения
+    mock_update.message.reply_text.assert_called_once_with("🔍 Собираю информацию, пожалуйста, подождите...")
+
+    # Проверяем редактирование сообщения с финальным статусом
+    mock_sent_message.edit_text.assert_called_once()
+    text = mock_sent_message.edit_text.call_args[0][0]
+
     assert "❗️ Не удалось получить токен TTLock." in text
 
 def test_logs_command_file_not_found(mock_update, mock_context):
     """Тест: /logs, когда лог-файл не найден."""
     with patch('os.path.exists', return_value=False):
         logs(mock_update, mock_context)
-    
+
     mock_update.message.reply_text.assert_called_once_with("Лог-файл не найден.", parse_mode='HTML')
 
 def test_format_logs_formatting():
     """Тест: форматирование логов и замена дней недели."""
     log_data = "2023-01-01 INFO: some task on monday\n2023-01-02 DEBUG: another task on tuesday"
     expected = "<b>Последние логи сервиса:</b>\n<code>2023-01-01 INFO: some task on Понедельник\n2023-01-02 DEBUG: another task on Вторник</code>"
-    
+
     with patch('builtins.open', mock_open(read_data=log_data)):
         with patch('os.path.exists', return_value=True):
             result = bot_module.format_logs()
-    
+
     assert result == expected
 
 # --- Schedule Enable/Disable ---
@@ -336,7 +353,7 @@ def test_settime_value_valid(mock_restart, mock_save_config, mock_update, mock_c
     mock_context.user_data['day'] = "Пн"
     with patch('telegram_bot.load_config', return_value={"open_times": {}}) as mock_load:
         result = settime_value(mock_update, mock_context)
-    
+
         assert result == ConversationHandler.END
         mock_load.assert_called_once()
         mock_save_config.assert_called_once_with({'open_times': {'Пн': '09:30'}}, bot_module.CONFIG_PATH, bot_module.logger)
@@ -414,7 +431,7 @@ def test_setbreak_add_valid(mock_restart, mock_save_config, mock_update, mock_co
     mock_context.user_data['day'] = "Вт"
     with patch('telegram_bot.load_config', return_value={"breaks": {}}) as mock_load:
         result = setbreak_add(mock_update, mock_context)
-    
+
         assert result == ConversationHandler.END
         mock_load.assert_called_once()
         mock_save_config.assert_called_once_with({'breaks': {'Вт': ['13:00-14:00']}}, bot_module.CONFIG_PATH, bot_module.logger)
@@ -509,7 +526,7 @@ def test_setemail_value(mock_restart, mock_open_file, mock_update, mock_context)
     """Тест: установка email."""
     mock_update.message.text = "new@mail.com"
     result = setemail_value(mock_update, mock_context)
-    
+
     handle = mock_open_file()
     handle.write.assert_any_call('EMAIL_TO=new@mail.com\n')
     mock_restart.assert_called_once()
@@ -546,8 +563,8 @@ def test_restart_auto_unlocker_cmd(mock_docker, mock_update, mock_context):
     """Тест: команда /restart_auto_unlocker."""
     mock_container = MagicMock()
     mock_docker.return_value.containers.get.return_value = mock_container
-    
+
     restart_auto_unlocker_cmd(mock_update, mock_context)
-    
+
     mock_container.restart.assert_called_once()
-    mock_update.message.reply_text.assert_any_call("Сервис автооткрытия перезапущен по команде.", parse_mode='HTML') 
+    mock_update.message.reply_text.assert_any_call("Сервис автооткрытия перезапущен по команде.", parse_mode='HTML')
