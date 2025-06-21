@@ -164,24 +164,34 @@ def test_confirm_change_yes_read_error(mock_open_file, mock_update, mock_context
 
 # --- Status and Logs ---
 
-@patch('docker.from_env')
-def test_status_command(mock_docker, mock_update, mock_context):
+@patch('ttlock_api.get_lock_status_details')
+@patch('ttlock_api.get_token')
+def test_status_command(mock_get_token, mock_get_details, mock_update, mock_context):
     """Тест: команда /status."""
-    mock_container = MagicMock()
-    mock_container.status = "running"
-    mock_docker.return_value.containers.get.return_value = mock_container
-    
+    # Настраиваем моки для API
+    mock_get_token.return_value = 'fake_token'
+    mock_get_details.return_value = {
+        "status": "Online",
+        "battery": 88,
+        "last_action": "Открыто"
+    }
+
     config_data = json.dumps({"timezone": "Asia/Tomsk", "schedule_enabled": True, "open_times": {"Пн": "09:00"}, "breaks": {}})
-    with patch('builtins.open', mock_open(read_data=config_data)):
+    with patch('telegram_bot.load_config', return_value=json.loads(config_data)):
         status(mock_update, mock_context)
-    
+
     mock_update.message.reply_text.assert_called_once()
     text = mock_update.message.reply_text.call_args[0][0]
-    assert "<b>Статус расписания</b>" in text
-    assert "Asia/Tomsk" in text
-    assert "<b>да</b>" in text
-    assert "работает" in text
-    assert "Пн: 09:00" in text
+
+    assert "<b>⚙️ Текущий статус сервиса:</b>" in text
+    assert "Расписание: ✅ Включено" in text
+    assert "Часовой пояс: <code>Asia/Tomsk</code>" in text
+    assert "<b>🔒 Статус замка:</b>" in text
+    assert "🟢 Сеть: <b>Online</b>" in text
+    assert "🔋 Заряд: <b>88%</b>" in text
+    assert "🕰 Последнее действие: <b>Открыто</b>" in text
+    assert "<b>🗓️ Расписание открытия:</b>" in text
+    assert "<b>Пн:</b> 09:00" in text
 
 def test_logs_command(mock_update, mock_context):
     """Тест: команда /logs."""
@@ -189,22 +199,22 @@ def test_logs_command(mock_update, mock_context):
     with patch('builtins.open', mock_open(read_data=log_data)):
         with patch('os.path.exists', return_value=True):
             logs(mock_update, mock_context)
-    
+
     mock_update.message.reply_text.assert_called_once()
     text = mock_update.message.reply_text.call_args[0][0]
     assert "<b>Последние логи сервиса:</b>" in text
     assert "log message 1" in text
 
-@patch('docker.from_env', side_effect=Exception("Docker error"))
-def test_status_command_docker_error(mock_docker, mock_update, mock_context):
-    """Тест: /status при ошибке Docker."""
+@patch('ttlock_api.get_token', return_value=None) # Моделируем ошибку получения токена
+def test_status_command_token_error(mock_get_token, mock_update, mock_context):
+    """Тест: /status при ошибке получения токена."""
     config_data = json.dumps({"timezone": "UTC", "schedule_enabled": True})
-    with patch('builtins.open', mock_open(read_data=config_data)):
+    with patch('telegram_bot.load_config', return_value=json.loads(config_data)):
         status(mock_update, mock_context)
-    
+
     mock_update.message.reply_text.assert_called_once()
     text = mock_update.message.reply_text.call_args[0][0]
-    assert "<b>Сервис автооткрытия:</b>" not in text
+    assert "❗️ Не удалось получить токен TTLock." in text
 
 def test_logs_command_file_not_found(mock_update, mock_context):
     """Тест: /logs, когда лог-файл не найден."""
