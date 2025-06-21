@@ -204,8 +204,8 @@ def test_job_full_retry_failure(mock_sleep, mock_get_token, mock_unlock, mock_se
         # 10 error messages + 1 for 3 fails + 1 for 5 fails (email) + 1 final error
         assert mock_send.call_count == 13
         mock_send_email.assert_called_once()
-        # 30s, 60s, 5min, 10min, 5 * 15min
-        assert mock_sleep.call_count == 2 + 5
+        # 30s, 60s, 5min, 10min, and 5x15min sleeps
+        assert mock_sleep.call_count == 9
 
 @patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
