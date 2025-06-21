@@ -113,32 +113,34 @@ def mock_get_now():
     with patch('ttlock_api.get_now', return_value=mock_dt) as mock_time:
         yield mock_time
 
-@patch('auto_unlocker.send_telegram_message')
-def test_resolve_lock_id_from_env(mock_send_msg, monkeypatch, mock_logger):
+# --- Tests for resolve_lock_id ---
+
+def test_resolve_lock_id_from_env(monkeypatch, mock_logger):
     """Test that lock_id is resolved from environment variables."""
     monkeypatch.setenv('TTLOCK_LOCK_ID', 'env_lock_id')
-    importlib.reload(auto_unlocker)
-    with patch('ttlock_api.list_locks') as mock_list_locks:
+    importlib.reload(auto_unlocker)  # Reload to pick up env var change
+    with patch('ttlock_api.list_locks') as mock_list_locks, \
+         patch('auto_unlocker.send_telegram_message') as mock_send_msg:
         lock_id = auto_unlocker.resolve_lock_id('test_token')
         assert lock_id == 'env_lock_id'
         mock_list_locks.assert_not_called()
         # It sends a telegram message
         mock_send_msg.assert_called_once()
 
-@patch('auto_unlocker.send_telegram_message')
-def test_resolve_lock_id_from_api(mock_send_msg, monkeypatch, mock_logger):
+def test_resolve_lock_id_from_api(monkeypatch, mock_logger):
     """Test that lock_id is resolved from the API if not in env."""
     monkeypatch.delenv('TTLOCK_LOCK_ID', raising=False)
-    os.environ.pop('TTLOCK_LOCK_ID', None) # Make sure it is gone
-    importlib.reload(auto_unlocker) # reload to pick up changed env
-    with patch('ttlock_api.list_locks') as mock_list_locks:
+    os.environ.pop('TTLOCK_LOCK_ID', None)  # Make sure it is gone
+    importlib.reload(auto_unlocker)  # reload to pick up changed env
+    with patch('ttlock_api.list_locks') as mock_list_locks, \
+         patch('auto_unlocker.send_telegram_message') as mock_send_msg:
         mock_list_locks.return_value = [{'lockId': 'api_lock_id', 'lockName': 'Test Lock'}]
 
         lock_id = auto_unlocker.resolve_lock_id('test_token')
 
         assert lock_id == 'api_lock_id'
         mock_list_locks.assert_called_once_with('test_token')
-        assert mock_send_msg.call_count == 1
+        mock_send_msg.assert_called_once()
 
 @patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
