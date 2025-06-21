@@ -378,6 +378,16 @@ def main() -> None:
     schedule.clear() # Очищаем старые задачи на случай перезапуска
     logger.info("Настройка расписания...")
 
+    day_map_rus_to_eng = {
+        'пн': 'monday',
+        'вт': 'tuesday',
+        'ср': 'wednesday',
+        'чт': 'thursday',
+        'пт': 'friday',
+        'сб': 'saturday',
+        'вс': 'sunday'
+    }
+
     schedule_enabled = cfg.get("schedule_enabled", True)
     if not schedule_enabled:
         logger.warning("Расписание в конфигурации отключено. Задачи не будут запланированы.")
@@ -388,9 +398,14 @@ def main() -> None:
 
         for day_name, open_time in open_times.items():
             if open_time:
+                eng_day = day_map_rus_to_eng.get(day_name.lower())
+                if not eng_day:
+                    logger.warning(f"Неизвестное имя дня недели в конфигурации: '{day_name}', пропуск.")
+                    continue
+
                 # Задача на открытие
                 logger.info(f"Планирую открытие на {day_name} в {open_time}")
-                day_schedule = getattr(schedule.every(), day_name.lower())
+                day_schedule = getattr(schedule.every(), eng_day)
                 day_schedule.at(open_time).do(job)
 
                 # Задачи на закрытие и повторное открытие по перерывам
@@ -418,7 +433,7 @@ def main() -> None:
                                 )
                         return _close
 
-                    day_schedule_close = getattr(schedule.every(), day_name.lower())
+                    day_schedule_close = getattr(schedule.every(), eng_day)
                     day_schedule_close.at(start_break).do(make_close(day=day_name))
 
                     # Открытие в конце перерыва
@@ -438,7 +453,7 @@ def main() -> None:
                                 )
                         return _open
 
-                    day_schedule_open = getattr(schedule.every(), day_name.lower())
+                    day_schedule_open = getattr(schedule.every(), eng_day)
                     day_schedule_open.at(end_break).do(make_reopen(day=day_name))
 
     # Логирование "сердцебиения" каждые 10 минут
