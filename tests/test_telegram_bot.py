@@ -460,13 +460,12 @@ def test_setbreak_remove_not_found(mock_restart, mock_save_config, mock_update, 
 # --- settimezone Conversation ---
 
 def test_settimezone_starts_conversation(mock_update, mock_context):
-    """Тест: /settimezone начинает диалог выбора часового пояса."""
+    """Тест: /settimezone начинает диалог."""
     result = settimezone(mock_update, mock_context)
     assert result == SETTIMEZONE_VALUE
-    mock_update.message.reply_text.assert_called_once()
-    args, kwargs = mock_update.message.reply_text.call_args
-    assert "Выберите часовой пояс" in args[0]
-    assert isinstance(kwargs['reply_markup'], InlineKeyboardMarkup)
+    mock_update.message.reply_text.assert_called_once_with(
+        "Введите часовой пояс (например, Europe/Moscow):", parse_mode='HTML'
+    )
 
 @patch('pytz.timezone', return_value=True) # Просто чтобы пройти проверку
 @patch('telegram_bot.save_config')

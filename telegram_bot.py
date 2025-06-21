@@ -478,6 +478,12 @@ def open_lock(update, context):
     send_message(update, "🔑 Отправляю команду на открытие замка...")
     try:
         token = ttlock_api.get_token(logger)
+        if not token:
+            msg = "Ошибка при открытии замка: Не удалось получить токен."
+            log_message(logger, "ERROR", msg)
+            send_message(update, msg)
+            return
+
         log_message(logger, "DEBUG", f"Получен токен: {token}")
         resp = ttlock_api.unlock_lock(token, TTLOCK_LOCK_ID, logger)
         log_message(logger, "DEBUG", f"Ответ от API: {resp}")
@@ -503,6 +509,12 @@ def close_lock(update, context):
     send_message(update, "🔒 Отправляю команду на закрытие замка...")
     try:
         token = ttlock_api.get_token(logger)
+        if not token:
+            msg = "Ошибка при закрытии замка: Не удалось получить токен."
+            log_message(logger, "ERROR", msg)
+            send_message(update, msg)
+            return
+
         log_message(logger, "DEBUG", f"Получен токен: {token}")
         resp = ttlock_api.lock_lock(token, TTLOCK_LOCK_ID, logger)
         log_message(logger, "DEBUG", f"Ответ от API: {resp}")
@@ -597,7 +609,7 @@ def settime_value(update, context):
     time_str = update.message.text.strip()
     
     # Проверяем формат времени
-    if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
+    if not re.match(r'^\d{1,2}:[0-5][0-9]$', time_str):
         send_message(update, "Некорректный формат времени. Используйте ЧЧ:ММ (например, 09:00).")
         return SETTIME_VALUE
         
@@ -732,7 +744,7 @@ def setbreak_add(update, context):
         return ConversationHandler.END
     break_str = update.message.text.strip()
     # Проверка формата
-    if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$', break_str):
+    if not re.match(r'^\d{1,2}:[0-5][0-9]-\d{1,2}:[0-5][0-9]$', break_str):
         send_message(update, "Некорректный формат перерыва. Используйте ЧЧ:ММ-ЧЧ:ММ (например, 12:00-13:00).")
         return SETBREAK_ADD
     try:
