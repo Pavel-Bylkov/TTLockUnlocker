@@ -146,7 +146,7 @@ def test_resolve_lock_id_from_api(mock_send_msg, monkeypatch, mock_logger):
 def test_job_success_on_time(mock_get_token, mock_unlock, mock_send, mock_config, mock_get_now, mock_logger):
     """Test successful execution of the job to unlock the lock."""
     mock_unlock.return_value = {"errcode": 0}
-    with patch('telegram_utils.load_config', return_value=mock_config):
+    with patch('auto_unlocker.load_config', return_value=mock_config):
         auto_unlocker.job()
 
         mock_unlock.assert_called_once_with('test_token', 'test_lock_id', mock_logger)
@@ -160,7 +160,7 @@ def test_job_not_unlock_time(mock_config, mock_get_now, mock_logger):
     """Test that job does nothing if it's not the scheduled time."""
     # It's Monday 09:00, but let's change open time to 10:00
     mock_config["open_times"]["Пн"] = "10:00"
-    with patch('telegram_utils.load_config', return_value=mock_config), \
+    with patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('auto_unlocker.ttlock_api.unlock_lock') as mock_unlock:
 
         auto_unlocker.job()
@@ -169,7 +169,7 @@ def test_job_not_unlock_time(mock_config, mock_get_now, mock_logger):
 def test_job_schedule_disabled(mock_config, mock_get_now, mock_logger):
     """Test that job does nothing if the schedule is disabled."""
     mock_config["schedule_enabled"] = False
-    with patch('telegram_utils.load_config', return_value=mock_config), \
+    with patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('auto_unlocker.ttlock_api.unlock_lock') as mock_unlock:
 
         auto_unlocker.job()
@@ -183,7 +183,7 @@ def test_job_during_break(mock_config, mock_logger):
     # Monday, 13:30
     mock_dt = datetime(2025, 6, 16, 13, 30)
     with patch('ttlock_api.get_now', return_value=mock_dt), \
-         patch('telegram_utils.load_config', return_value=mock_config), \
+         patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('auto_unlocker.ttlock_api.unlock_lock') as mock_unlock:
 
         auto_unlocker.job()
@@ -197,7 +197,7 @@ def test_job_during_break(mock_config, mock_logger):
 def test_job_full_retry_failure(mock_sleep, mock_get_token, mock_unlock, mock_send, mock_send_email, mock_config, mock_get_now, mock_logger):
     """Test the retry logic when unlock fails all 10 times."""
     mock_unlock.return_value = {"errcode": 1, "errmsg": "Failed"}
-    with patch('telegram_utils.load_config', return_value=mock_config):
+    with patch('auto_unlocker.load_config', return_value=mock_config):
         auto_unlocker.job()
 
         assert mock_unlock.call_count == 10
@@ -217,7 +217,7 @@ def test_job_retry_success(mock_sleep, mock_get_token, mock_unlock, mock_send, m
         {"errcode": 1, "errmsg": "Failed"}, # 1st fails
         {"errcode": 0}                     # 2nd succeeds
     ]
-    with patch('telegram_utils.load_config', return_value=mock_config):
+    with patch('auto_unlocker.load_config', return_value=mock_config):
         auto_unlocker.job()
 
         assert mock_unlock.call_count == 2
@@ -235,7 +235,7 @@ def test_main_schedules_jobs_correctly(mock_every, mock_config, mock_logger):
     # to allow chaining like schedule.every().monday...
     mock_every.return_value = mock_day
 
-    with patch('telegram_utils.load_config', return_value=mock_config):
+    with patch('auto_unlocker.load_config', return_value=mock_config):
         # We need to interrupt the infinite loop in main
         with patch('time.sleep', side_effect=InterruptedError):
             with pytest.raises(InterruptedError):
@@ -261,7 +261,7 @@ def test_main_with_schedule_disabled(mock_config, mock_logger):
     """Test that main() loop doesn't schedule jobs when disabled."""
     mock_config["schedule_enabled"] = False
 
-    with patch('telegram_utils.load_config', return_value=mock_config), \
+    with patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('schedule.every') as mock_every, \
          patch('time.sleep', side_effect=InterruptedError):
 
