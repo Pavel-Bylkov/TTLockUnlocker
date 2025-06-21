@@ -113,7 +113,7 @@ def mock_get_now():
     with patch('ttlock_api.get_now', return_value=mock_dt) as mock_time:
         yield mock_time
 
-@patch('telegram_utils.send_telegram_message')
+@patch('auto_unlocker.send_telegram_message')
 def test_resolve_lock_id_from_env(mock_send_msg, monkeypatch, mock_logger):
     """Test that lock_id is resolved from environment variables."""
     monkeypatch.setenv('TTLOCK_LOCK_ID', 'env_lock_id')
@@ -125,7 +125,7 @@ def test_resolve_lock_id_from_env(mock_send_msg, monkeypatch, mock_logger):
         # It sends a telegram message
         mock_send_msg.assert_called_once()
 
-@patch('telegram_utils.send_telegram_message')
+@patch('auto_unlocker.send_telegram_message')
 def test_resolve_lock_id_from_api(mock_send_msg, monkeypatch, mock_logger):
     """Test that lock_id is resolved from the API if not in env."""
     monkeypatch.delenv('TTLOCK_LOCK_ID', raising=False)
@@ -140,7 +140,7 @@ def test_resolve_lock_id_from_api(mock_send_msg, monkeypatch, mock_logger):
         mock_list_locks.assert_called_once_with('test_token')
         assert mock_send_msg.call_count == 1
 
-@patch('telegram_utils.send_telegram_message')
+@patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 @patch('auto_unlocker.ttlock_api.get_token', return_value='test_token')
 def test_job_success_on_time(mock_get_token, mock_unlock, mock_send, mock_config, mock_get_now, mock_logger):
@@ -189,8 +189,8 @@ def test_job_during_break(mock_config, mock_logger):
         auto_unlocker.job()
         mock_unlock.assert_not_called()
 
-@patch('telegram_utils.send_email_notification')
-@patch('telegram_utils.send_telegram_message')
+@patch('auto_unlocker.send_email_notification')
+@patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 @patch('auto_unlocker.ttlock_api.get_token', return_value='test_token')
 @patch('time.sleep')
@@ -207,7 +207,7 @@ def test_job_full_retry_failure(mock_sleep, mock_get_token, mock_unlock, mock_se
         # 30s, 60s, 5min, 10min, 5 * 15min
         assert mock_sleep.call_count == 2 + 5
 
-@patch('telegram_utils.send_telegram_message')
+@patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 @patch('auto_unlocker.ttlock_api.get_token', return_value='test_token')
 @patch('time.sleep')
