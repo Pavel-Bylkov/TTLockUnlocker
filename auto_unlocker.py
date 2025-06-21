@@ -138,6 +138,14 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
         last_error = response.get('errmsg', 'Неизвестная ошибка') if response else 'Ответ от API не получен'
         logger.error(f"Попытка #{attempt} не удалась: {last_error}")
 
+        # Отправляем уведомление в телеграм о каждой неудаче
+        send_telegram_message(
+            telegram_token,
+            telegram_chat_id,
+            f"⚠️ <b>Попытка #{attempt} ({failure_msg_part}) не удалась.</b><br>Ошибка: {last_error}",
+            logger
+        )
+
         # Уведомление после 5-й неудачной попытки
         if attempt == 5:
             msg = f"❗️ Не удалось выполнить {failure_msg_part} после 5 попыток. Отправляю email."
