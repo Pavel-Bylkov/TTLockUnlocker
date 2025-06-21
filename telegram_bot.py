@@ -239,7 +239,7 @@ def setemail_value(update, context) -> int:
     )
     return ConversationHandler.END
 
-def test_email_command(update, context):
+def do_test_email(update, context):
     """
     Отправляет тестовое email-сообщение.
     """
@@ -818,7 +818,7 @@ def main():
             CommandHandler('open', open_lock),
             CommandHandler('close', close_lock),
             CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd),
-            CommandHandler('test_email', test_email_command),
+            CommandHandler('test_email', do_test_email),
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
