@@ -396,6 +396,14 @@ def status(update, context):
         send_message(update, "Нет доступа.")
         return
 
+    # Отправляем временное сообщение
+    try:
+        sent_message = update.message.reply_text("🔍 Собираю информацию, пожалуйста, подождите...")
+    except Exception as e:
+        logger.error(f"Не удалось отправить временное сообщение: {e}")
+        # Если не можем отправить, просто выходим
+        return
+
     cfg = load_config(CONFIG_PATH, logger)
     tz_str = cfg.get("timezone", "N/A")
     schedule_enabled = "✅ Включено" if cfg.get("schedule_enabled", True) else "❌ Отключено"
@@ -447,7 +455,13 @@ def status(update, context):
             break_str = f" (перерывы: {', '.join(breaks)})" if breaks else ""
             message_lines.append(f"  - <b>{day}:</b> {time}{break_str}")
 
-    send_message(update, "\n".join(message_lines))
+    # Редактируем временное сообщение, заменяя его на полный статус
+    try:
+        sent_message.edit_text("\n".join(message_lines), parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Не удалось отредактировать сообщение со статусом: {e}")
+        # Если редактирование не удалось, отправляем как новое сообщение
+        send_message(update, "\n".join(message_lines))
 
 def enable_schedule(update, context):
     """

@@ -275,10 +275,10 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
         if logger:
             logger.debug(f"Ответ lock/detail: {response.text}")
 
-        if response_data.get("errcode") == 0:
+        if "errcode" not in response_data:
             details["battery"] = response_data.get("electricQuantity")
             # Для замков с WiFi-модулем, 1 = Online
-            network_status = response_data.get("networkStatus")
+            network_status = response_data.get("isOnline")
             details["status"] = "Online" if network_status == 1 else "Offline"
         else:
             if logger:
@@ -306,13 +306,32 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
         if response_data.get("list"):
             latest_record = response_data["list"][0]
             record_type = latest_record.get("recordType")
-            # Простое сопоставление для понятности
-            if "unlock" in record_type.lower():
-                details["last_action"] = "Открыто"
-            elif "lock" in record_type.lower():
-                details["last_action"] = "Закрыто"
+
+            action_map = {
+                1: "Открыто (приложение)",
+                2: "Открыто (пароль)",
+                3: "Открыто (карта)",
+                4: "Открыто (отпечаток)",
+                8: "Закрыто (авто)",
+                9: "Закрыто (приложение)",
+                11: "Открыто (удаленно)",
+                12: "Закрыто (удаленно)",
+                26: "Открыто (механически)",
+            }
+
+            if isinstance(record_type, int) and record_type in action_map:
+                details["last_action"] = action_map[record_type]
+            elif isinstance(record_type, str):
+                # На случай, если API вернет строку
+                if "unlock" in record_type.lower():
+                    details["last_action"] = "Открыто"
+                elif "lock" in record_type.lower():
+                    details["last_action"] = "Закрыто"
+                else:
+                    details["last_action"] = record_type
             else:
-                details["last_action"] = record_type
+                details["last_action"] = f"Код ({record_type})"
+
         else:
             if logger:
                 logger.warning("Не удалось получить записи из журнала для определения статуса (открыт/закрыт).")
@@ -327,7 +346,7 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
 def get_lock_status(token, lock_id, logger=None):
     """
     Получает статус замка с указанным идентификатором.
-    
+
     :param token: access_token для доступа к API.
     :param lock_id: Идентификатор замка, статус которого нужно получить.
     :param logger: Логгер для записи информации (опционально).
@@ -362,10 +381,10 @@ def get_lock_status(token, lock_id, logger=None):
 def get_timezone(config_path: str = CONFIG_PATH) -> str:
     """
     Получает часовой пояс из конфигурации.
-    
+
     Args:
         config_path: Путь к файлу конфигурации
-    
+
     Returns:
         str: Название часового пояса
     """
@@ -380,10 +399,10 @@ def get_timezone(config_path: str = CONFIG_PATH) -> str:
 def get_now(config_path: str = CONFIG_PATH) -> datetime:
     """
     Получает текущее время в указанном часовом поясе.
-    
+
     Args:
         config_path: Путь к файлу конфигурации
-    
+
     Returns:
         datetime: Текущее время в указанном часовом поясе
     """
@@ -397,7 +416,7 @@ class TZFormatter(logging.Formatter):
     def __init__(self, fmt: str, datefmt: str, config_path: str = CONFIG_PATH):
         """
         Инициализирует форматтер.
-        
+
         Args:
             fmt: Формат сообщения
             datefmt: Формат даты
@@ -409,11 +428,11 @@ class TZFormatter(logging.Formatter):
     def formatTime(self, record: logging.LogRecord, datefmt: Optional[str] = None) -> str:
         """
         Форматирует время записи лога.
-        
+
         Args:
             record: Запись лога
             datefmt: Формат даты (опционально)
-        
+
         Returns:
             str: Отформатированное время
         """
@@ -421,4 +440,4 @@ class TZFormatter(logging.Formatter):
         dt = pytz.timezone(get_timezone(self.config_path)).localize(dt)
         if datefmt:
             return dt.strftime(datefmt)
-        return dt.strftime("%Y-%m-%d %H:%M:%S %Z") 
+        return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
