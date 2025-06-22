@@ -251,14 +251,12 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
         Словарь с деталями:
         {
             "battery": int (уровень заряда) или None,
-            "status": "Online" | "Offline" или None,
-            "last_action": str (описание последнего действия) или None
+            "status": "Online" | "Offline" или None
         }
     """
     details = {
         "battery": None,
-        "status": None,
-        "last_action": None
+        "status": None
     }
 
     # 1. Получаем уровень заряда и статус сети
@@ -286,76 +284,6 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
     except Exception as e:
         if logger:
             logger.error(f"Исключение при запросе деталей замка: {e}")
-
-    # 2. Получаем последнюю запись из журнала
-    try:
-        url_records = "https://euapi.ttlock.com/v3/lockRecord/list"
-        data_records = {
-            "clientId": TTLOCK_CLIENT_ID,
-            "accessToken": token,
-            "lockId": lock_id,
-            "pageNo": 1,
-            "pageSize": 10, # Запрашиваем больше записей для надежности
-            "date": int(time.time() * 1000)
-        }
-        response = requests.get(url_records, params=data_records, verify=False, timeout=10)
-        response_data = response.json()
-        if logger:
-            logger.debug(f"Ответ lockRecord/list: {response.text}")
-
-        if response_data.get("list"):
-            records = response_data["list"]
-
-            if logger:
-                logger.debug(f"Получено {len(records)} записей из журнала")
-                for i, record in enumerate(records[:3]):  # Логируем первые 3 записи
-                    logger.debug(f"Запись {i}: recordType={record.get('recordType')}, lockDate={record.get('lockDate')}")
-
-            # Сортируем записи по времени (если есть поле lockDate)
-            # API может возвращать записи в произвольном порядке
-            if records and "lockDate" in records[0]:
-                records.sort(key=lambda x: x.get("lockDate", 0), reverse=True)
-                if logger:
-                    logger.debug("Записи отсортированы по lockDate")
-
-            latest_record = records[0]  # Берем первую после сортировки
-            record_type = latest_record.get("recordType")
-
-            if logger:
-                logger.debug(f"Выбрана последняя запись: recordType={record_type}, lockDate={latest_record.get('lockDate')}")
-
-            action_map = {
-                1: "Открыто (приложение)",
-                2: "Открыто (пароль)",
-                3: "Открыто (карта)",
-                4: "Открыто (отпечаток)",
-                8: "Закрыто (авто)",
-                9: "Закрыто (приложение)",
-                11: "Открыто (удаленно)",
-                12: "Закрыто (удаленно)",
-                26: "Открыто (механически)",
-            }
-
-            if isinstance(record_type, int) and record_type in action_map:
-                details["last_action"] = action_map[record_type]
-            elif isinstance(record_type, str):
-                # На случай, если API вернет строку
-                if "unlock" in record_type.lower():
-                    details["last_action"] = "Открыто"
-                elif "lock" in record_type.lower():
-                    details["last_action"] = "Закрыто"
-                else:
-                    details["last_action"] = record_type
-            else:
-                details["last_action"] = f"Код ({record_type})"
-
-        else:
-            if logger:
-                logger.warning("Не удалось получить записи из журнала для определения статуса (открыт/закрыт).")
-
-    except Exception as e:
-        if logger:
-            logger.error(f"Исключение при запросе журнала замка: {e}")
 
     return details
 
