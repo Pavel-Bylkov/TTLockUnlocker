@@ -862,15 +862,14 @@ def main():
             MessageHandler(Filters.regex('^📋 Логи$'), logs),
             MessageHandler(Filters.regex('^🔓 Открыть$'), open_lock),
             MessageHandler(Filters.regex('^🔒 Закрыть$'), close_lock),
-            MessageHandler(Filters.regex('^⏰ Время$'), settime),
-            MessageHandler(Filters.regex('^☕ Перерыв$'), setbreak),
-            MessageHandler(Filters.regex('^👥 Получатель$'), setchat),
-            MessageHandler(Filters.regex('^📧 Email$'), setemail),
             MessageHandler(Filters.regex('^🔄 Перезапуск$'), restart_auto_unlocker_cmd),
             MessageHandler(Filters.regex('^✉️ Тест Email$'), do_test_email),
             MessageHandler(Filters.regex('^📋 Меню$'), menu),
             ConversationHandler(
-                entry_points=[CommandHandler('setchat', setchat)],
+                entry_points=[
+                    CommandHandler('setchat', setchat),
+                    MessageHandler(Filters.regex('^👥 Получатель$'), setchat)
+                ],
                 states={
                     ASK_CODEWORD: [MessageHandler(Filters.text, check_codeword)],
                     CONFIRM_CHANGE: [MessageHandler(Filters.text, confirm_change)],
@@ -887,7 +886,10 @@ def main():
                 per_chat=True
             ),
             ConversationHandler(
-                entry_points=[CommandHandler('settime', settime)],
+                entry_points=[
+                    CommandHandler('settime', settime),
+                    MessageHandler(Filters.regex('^⏰ Время$'), settime)
+                ],
                 states={
                     SETTIME_DAY: [CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$")],
                     SETTIME_VALUE: [MessageHandler(Filters.text, settime_value)],
@@ -896,7 +898,10 @@ def main():
                 per_chat=True
             ),
             ConversationHandler(
-                entry_points=[CommandHandler('setbreak', setbreak)],
+                entry_points=[
+                    CommandHandler('setbreak', setbreak),
+                    MessageHandler(Filters.regex('^☕ Перерыв$'), setbreak)
+                ],
                 states={
                     SETBREAK_DAY: [CallbackQueryHandler(handle_setbreak_callback, pattern="^setbreak_")],
                     SETBREAK_ACTION: [CallbackQueryHandler(handle_setbreak_action, pattern="^(add_break|remove_break)$")],
@@ -907,7 +912,10 @@ def main():
                 per_chat=True
             ),
             ConversationHandler(
-                entry_points=[CommandHandler('setemail', setemail)],
+                entry_points=[
+                    CommandHandler('setemail', setemail),
+                    MessageHandler(Filters.regex('^📧 Email$'), setemail)
+                ],
                 states={
                     SETEMAIL_VALUE: [MessageHandler(Filters.text, setemail_value)],
                 },
