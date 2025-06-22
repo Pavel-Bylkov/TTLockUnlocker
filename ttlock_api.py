@@ -295,7 +295,7 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
             "accessToken": token,
             "lockId": lock_id,
             "pageNo": 1,
-            "pageSize": 1, # Берем только одну, самую свежую запись
+            "pageSize": 10, # Запрашиваем больше записей для надежности
             "date": int(time.time() * 1000)
         }
         response = requests.get(url_records, params=data_records, verify=False, timeout=10)
@@ -304,8 +304,25 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
             logger.debug(f"Ответ lockRecord/list: {response.text}")
 
         if response_data.get("list"):
-            latest_record = response_data["list"][0]
+            records = response_data["list"]
+
+            if logger:
+                logger.debug(f"Получено {len(records)} записей из журнала")
+                for i, record in enumerate(records[:3]):  # Логируем первые 3 записи
+                    logger.debug(f"Запись {i}: recordType={record.get('recordType')}, recordDate={record.get('recordDate')}")
+
+            # Сортируем записи по времени (если есть поле recordDate)
+            # API может возвращать записи в произвольном порядке
+            if records and "recordDate" in records[0]:
+                records.sort(key=lambda x: x.get("recordDate", 0), reverse=True)
+                if logger:
+                    logger.debug("Записи отсортированы по recordDate")
+
+            latest_record = records[0]  # Берем первую после сортировки
             record_type = latest_record.get("recordType")
+
+            if logger:
+                logger.debug(f"Выбрана последняя запись: recordType={record_type}, recordDate={latest_record.get('recordDate')}")
 
             action_map = {
                 1: "Открыто (приложение)",
