@@ -172,8 +172,7 @@ def test_status_command(mock_get_token, mock_get_details, mock_update, mock_cont
     mock_get_token.return_value = 'fake_token'
     mock_get_details.return_value = {
         "status": "Online",
-        "battery": 88,
-        "last_action": "Открыто"
+        "battery": 88
     }
 
     # Мок для reply_text должен возвращать объект с методом edit_text
@@ -197,7 +196,7 @@ def test_status_command(mock_get_token, mock_get_details, mock_update, mock_cont
     assert "<b>🔒 Статус замка:</b>" in text
     assert "🟢 Сеть: <b>Online</b>" in text
     assert "🔋 Заряд: <b>88%</b>" in text
-    assert "🕰 Последнее действие: <b>Открыто</b>" in text
+    assert "🕰 Последнее действие:" not in text # Проверяем, что этого текста больше нет
     assert "<b>🗓️ Расписание открытия:</b>" in text
     assert "<b>Пн:</b> 09:00" in text
 
