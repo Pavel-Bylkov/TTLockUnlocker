@@ -309,20 +309,20 @@ def get_lock_status_details(token: str, lock_id: str, logger: Optional[logging.L
             if logger:
                 logger.debug(f"Получено {len(records)} записей из журнала")
                 for i, record in enumerate(records[:3]):  # Логируем первые 3 записи
-                    logger.debug(f"Запись {i}: recordType={record.get('recordType')}, serverDate={record.get('serverDate')}")
+                    logger.debug(f"Запись {i}: recordType={record.get('recordType')}, lockDate={record.get('lockDate')}")
 
-            # Сортируем записи по времени (если есть поле serverDate)
+            # Сортируем записи по времени (если есть поле lockDate)
             # API может возвращать записи в произвольном порядке
-            if records and "serverDate" in records[0]:
-                records.sort(key=lambda x: x.get("serverDate", 0), reverse=True)
+            if records and "lockDate" in records[0]:
+                records.sort(key=lambda x: x.get("lockDate", 0), reverse=True)
                 if logger:
-                    logger.debug("Записи отсортированы по serverDate")
+                    logger.debug("Записи отсортированы по lockDate")
 
             latest_record = records[0]  # Берем первую после сортировки
             record_type = latest_record.get("recordType")
 
             if logger:
-                logger.debug(f"Выбрана последняя запись: recordType={record_type}, serverDate={latest_record.get('serverDate')}")
+                logger.debug(f"Выбрана последняя запись: recordType={record_type}, lockDate={latest_record.get('lockDate')}")
 
             action_map = {
                 1: "Открыто (приложение)",
