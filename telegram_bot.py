@@ -753,12 +753,12 @@ def menu(update, context):
     )
 
 MENU_COMMANDS = [
-    ["/status", "/logs"],
-    ["/open", "/close"],
-    ["/settime", "/setbreak"],
-    ["/setchat", "/setemail"],
-    ["/restart_auto_unlocker", "/test_email"],
-    ["/menu"]
+    ["📊 Статус", "📋 Логи"],
+    ["🔓 Открыть", "🔒 Закрыть"],
+    ["⏰ Время", "☕ Перерыв"],
+    ["👥 Получатель", "📧 Email"],
+    ["🔄 Перезапуск", "✉️ Тест Email"],
+    ["📋 Меню"]
 ]
 
 def setbreak_add(update, context):
@@ -857,6 +857,18 @@ def main():
             CommandHandler('close', close_lock),
             CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd),
             CommandHandler('test_email', do_test_email),
+            # Обработчики для русских команд меню
+            MessageHandler(Filters.regex('^📊 Статус$'), status),
+            MessageHandler(Filters.regex('^📋 Логи$'), logs),
+            MessageHandler(Filters.regex('^🔓 Открыть$'), open_lock),
+            MessageHandler(Filters.regex('^🔒 Закрыть$'), close_lock),
+            MessageHandler(Filters.regex('^⏰ Время$'), settime),
+            MessageHandler(Filters.regex('^☕ Перерыв$'), setbreak),
+            MessageHandler(Filters.regex('^👥 Получатель$'), setchat),
+            MessageHandler(Filters.regex('^📧 Email$'), setemail),
+            MessageHandler(Filters.regex('^🔄 Перезапуск$'), restart_auto_unlocker_cmd),
+            MessageHandler(Filters.regex('^✉️ Тест Email$'), do_test_email),
+            MessageHandler(Filters.regex('^📋 Меню$'), menu),
             ConversationHandler(
                 entry_points=[CommandHandler('setchat', setchat)],
                 states={
