@@ -9,16 +9,24 @@ import json
 
 logger = logging.getLogger(__name__)
 
-def send_telegram_message(token, chat_id, text, logger=None):
+def send_telegram_message(token, chat_id=None, text=None, logger=None):
     """
     Отправляет сообщение в Telegram.
-    
+
     Args:
         token: Токен бота
-        chat_id: ID чата для отправки
+        chat_id: ID чата для отправки (если None, читается из TELEGRAM_CHAT_ID)
         text: Текст сообщения
         logger: Логгер для записи ошибок (опционально)
     """
+    # Если chat_id не передан, читаем из переменных окружения
+    if chat_id is None:
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        if not chat_id:
+            if logger:
+                logger.error("TELEGRAM_CHAT_ID не задан в переменных окружения")
+            return False
+
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,

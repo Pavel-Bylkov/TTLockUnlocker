@@ -132,7 +132,7 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
 
         if response and response.get("errcode") == 0:
             logger.info(f"Замок успешно {success_msg}!")
-            send_telegram_message(telegram_token, telegram_chat_id, f"✅ <b>Замок успешно {success_msg} (попытка #{attempt})</b>", logger)
+            send_telegram_message(telegram_token, None, f"✅ <b>Замок успешно {success_msg} (попытка #{attempt})</b>", logger)
             return True  # Успех
 
         last_error = response.get('errmsg', 'Неизвестная ошибка') if response else 'Ответ от API не получен'
@@ -151,7 +151,7 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
         # Отправляем уведомление в телеграм о каждой неудаче
         send_telegram_message(
             telegram_token,
-            telegram_chat_id,
+            None,
             f"⚠️ <b>Попытка #{attempt} ({failure_msg_part}) не удалась.</b><br>Ошибка: {last_error}{details_msg}",
             logger
         )
@@ -160,7 +160,7 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
         if attempt == 5:
             msg = f"❗️ Не удалось выполнить {failure_msg_part} после 5 попыток. Отправляю email."
             logger.warning(msg)
-            send_telegram_message(telegram_token, telegram_chat_id, msg, logger)
+            send_telegram_message(telegram_token, None, msg, logger)
             send_email_notification(
                 subject=f"Проблема с TTLock: Замок {lock_id}",
                 body=f"Не удалось выполнить {failure_msg_part} для замка {lock_id} после 5 попыток.\nПоследняя ошибка: {last_error}"
@@ -175,7 +175,7 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
     # Если все попытки провалились
     final_error_msg = f"🔥 <b>КРИТИЧЕСКАЯ ОШИБКА:</b> Все {total_attempts} попыток {action_name} замка не удались. Последняя ошибка: {last_error}. Требуется ручное вмешательство."
     logger.critical(final_error_msg)
-    send_telegram_message(telegram_token, telegram_chat_id, final_error_msg, logger)
+    send_telegram_message(telegram_token, None, final_error_msg, logger)
     send_email_notification(
         subject=f"Критическая ошибка TTLock: Замок {lock_id} не отвечает",
         body=final_error_msg
@@ -216,21 +216,21 @@ def resolve_lock_id(token: str) -> Optional[str]:
     lock_id_env = os.getenv("TTLOCK_LOCK_ID")
     if lock_id_env:
         logger.info(f"Используется lock_id из .env: {lock_id_env}")
-        send_telegram_message(telegram_token, telegram_chat_id, f"ℹ️ lock_id найден в .env: <code>{lock_id_env}</code>", logger)
+        send_telegram_message(telegram_token, None, f"ℹ️ lock_id найден в .env: <code>{lock_id_env}</code>", logger)
         return lock_id_env
 
     locks = ttlock_api.list_locks(token)
     if not locks:
         msg = "Замки не найдены. Проверьте права доступа."
         logger.error(msg)
-        send_telegram_message(telegram_token, telegram_chat_id, f"❗️ <b>Ошибка: замки не найдены</b>", logger)
+        send_telegram_message(telegram_token, None, f"❗️ <b>Ошибка: замки не найдены</b>", logger)
         return None
 
     first_lock = locks[0]
     lock_id = first_lock.get('lockId')
     msg = f"lock_id не был задан в .env, выбран первый из списка: {lock_id}"
     logger.info(msg)
-    send_telegram_message(telegram_token, telegram_chat_id, f"ℹ️ lock_id выбран из списка: <code>{lock_id}</code>", logger)
+    send_telegram_message(telegram_token, None, f"ℹ️ lock_id выбран из списка: <code>{lock_id}</code>", logger)
     return lock_id
 
 def job() -> None:
@@ -312,13 +312,13 @@ def job() -> None:
         token = ttlock_api.get_token(logger)
         if not token:
             logger.error("Не удалось получить токен для открытия замка.")
-            send_telegram_message(telegram_token, telegram_chat_id, "❗️ <b>Ошибка: не удалось получить токен TTLock</b>", logger)
+            send_telegram_message(telegram_token, None, "❗️ <b>Ошибка: не удалось получить токен TTLock</b>", logger)
             return
 
         # Если LOCK_ID не задан, процедура не может быть выполнена.
         if not LOCK_ID:
             logger.error("LOCK_ID не задан в .env, процедура открытия не может быть выполнена.")
-            send_telegram_message(telegram_token, telegram_chat_id, "❗️ <b>Ошибка: LOCK_ID не задан</b>", logger)
+            send_telegram_message(telegram_token, None, "❗️ <b>Ошибка: LOCK_ID не задан</b>", logger)
             return
 
         execute_lock_action_with_retries(
@@ -341,14 +341,14 @@ def main() -> None:
     Главная функция: настраивает и запускает планировщик.
     """
     logger.info("Запуск сервиса auto_unlocker...")
-    send_telegram_message(telegram_token, telegram_chat_id, "🚀 <b>Сервис auto_unlocker запущен</b>", logger)
+    send_telegram_message(telegram_token, None, "🚀 <b>Сервис auto_unlocker запущен</b>", logger)
 
     # Получаем токен для первоначальной проверки
     token = ttlock_api.get_token(logger)
     if not token:
         msg = "Не удалось получить токен при запуске. Проверьте учетные данные TTLock."
         logger.critical(msg)
-        send_telegram_message(telegram_token, telegram_chat_id, f"🔥 <b>Критическая ошибка:</b> {msg}", logger)
+        send_telegram_message(telegram_token, None, f"🔥 <b>Критическая ошибка:</b> {msg}", logger)
         send_email_notification("Критическая ошибка TTLock", msg)
         return
 
@@ -357,7 +357,7 @@ def main() -> None:
     if not lock_id:
         msg = "Не удалось определить lock_id. Сервис не может продолжить работу."
         logger.critical(msg)
-        send_telegram_message(telegram_token, telegram_chat_id, f"🔥 <b>Критическая ошибка:</b> {msg}", logger)
+        send_telegram_message(telegram_token, None, f"🔥 <b>Критическая ошибка:</b> {msg}", logger)
         send_email_notification("Критическая ошибка TTLock", msg)
         return
 
@@ -369,7 +369,7 @@ def main() -> None:
     if not cfg:
         msg = f"Не удалось загрузить конфигурационный файл {CONFIG_PATH}. Используются значения по умолчанию."
         logger.warning(msg)
-        send_telegram_message(telegram_token, telegram_chat_id, f"⚠️ <b>Предупреждение:</b> {msg}", logger)
+        send_telegram_message(telegram_token, None, f"⚠️ <b>Предупреждение:</b> {msg}", logger)
         cfg = {} # Используем пустой конфиг, чтобы дальше код работал со значениями по-умолчанию
 
     # Проверяем и устанавливаем часовой пояс
@@ -379,10 +379,10 @@ def main() -> None:
         os.environ['TZ'] = tz_str
         time_module.tzset()
         logger.info(f"Установлен часовой пояс: {tz_str}")
-        send_telegram_message(telegram_token, telegram_chat_id, f"⚙️ Часовой пояс: <code>{tz_str}</code>", logger)
+        send_telegram_message(telegram_token, None, f"⚙️ Часовой пояс: <code>{tz_str}</code>", logger)
     except Exception as e:
         logger.error(f"Ошибка установки часового пояса {tz_str}: {e}")
-        send_telegram_message(telegram_token, telegram_chat_id, f"❗️ <b>Ошибка установки часового пояса:</b> {tz_str}", logger)
+        send_telegram_message(telegram_token, None, f"❗️ <b>Ошибка установки часового пояса:</b> {tz_str}", logger)
 
     # --- Настройка расписания ---
     schedule.clear() # Очищаем старые задачи на случай перезапуска
@@ -401,7 +401,7 @@ def main() -> None:
     schedule_enabled = cfg.get("schedule_enabled", True)
     if not schedule_enabled:
         logger.warning("Расписание в конфигурации отключено. Задачи не будут запланированы.")
-        send_telegram_message(telegram_token, telegram_chat_id, "🚫 <b>Расписание отключено.</b> Задачи автоматического открытия/закрытия неактивны.", logger)
+        send_telegram_message(telegram_token, None, "🚫 <b>Расписание отключено.</b> Задачи автоматического открытия/закрытия неактивны.", logger)
     else:
         open_times = cfg.get("open_times", {})
         breaks = cfg.get("breaks", {})
@@ -470,7 +470,7 @@ def main() -> None:
     schedule.every(10).minutes.do(log_heartbeat)
 
     logger.info("Планировщик запущен и ожидает задач.")
-    send_telegram_message(telegram_token, telegram_chat_id, "✅ <b>Планировщик успешно настроен и запущен.</b>", logger)
+    send_telegram_message(telegram_token, None, "✅ <b>Планировщик успешно настроен и запущен.</b>", logger)
 
     # Основной цикл
     while True:

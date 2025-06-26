@@ -66,6 +66,33 @@ def test_send_telegram_message_success(mock_post, mock_logger):
     mock_logger.warning.assert_not_called()
 
 @patch('requests.post')
+def test_send_telegram_message_with_env_chat_id(mock_post, mock_logger, monkeypatch):
+    """Test sending a Telegram message using chat_id from environment variables."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_post.return_value = mock_response
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "456")
+
+    send_telegram_message('token', None, 'test', mock_logger)
+
+    mock_post.assert_called_once()
+    assert 'https://api.telegram.org/bottoken/sendMessage' in mock_post.call_args[0][0]
+    assert mock_post.call_args[1]['data']['chat_id'] == "456"
+    assert mock_post.call_args[1]['data']['text'] == 'test'
+    mock_logger.warning.assert_not_called()
+
+@patch('requests.post')
+def test_send_telegram_message_no_chat_id(mock_post, mock_logger, monkeypatch):
+    """Test sending a Telegram message when no chat_id is provided and not in env."""
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+
+    result = send_telegram_message('token', None, 'test', mock_logger)
+
+    assert result is False
+    mock_post.assert_not_called()
+    mock_logger.error.assert_called_once_with("TELEGRAM_CHAT_ID не задан в переменных окружения")
+
+@patch('requests.post')
 def test_send_telegram_message_http_error(mock_post, mock_logger):
     """Test handling of an HTTP error when sending a Telegram message."""
     mock_response = MagicMock()
