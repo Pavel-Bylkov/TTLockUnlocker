@@ -218,16 +218,64 @@ def unlock_lock(token, lock_id):
 
 
 if __name__ == "__main__":
-    # Основной запуск
-    token = ttlock_api.get_token()
+    def input_lock_id(default=None):
+        val = input(f"Введите Lock ID (Enter для текущего: {default}): ").strip()
+        return val if val else default
+    def print_menu():
+        print("\nВыберите действие:")
+        print("1. Получить access_token")
+        print("2. Получить список замков")
+        print("3. Открыть замок")
+        print("4. Закрыть замок")
+        print("5. Получить статус замка")
+        print("6. Сменить Lock ID (только для этой сессии)")
+        print("0. Выход")
 
-    if token:
-        locks = ttlock_api.list_locks(token)
-        lock_list = locks.get("list", []) if locks else []
-        if lock_list:
-            first_lock = lock_list[0]
-            lock_id = first_lock.get('lockId')
-            print("\nПробуем открыть замок...")
-            ttlock_api.unlock_lock(token, lock_id)
+    current_lock_id = lock_id
+    token = None
+    while True:
+        print_menu()
+        choice = input("Ваш выбор: ").strip()
+        if choice == "1":
+            token = get_token()
+            print(f"Текущий access_token: {token}")
+        elif choice == "2":
+            if not token:
+                token = get_token()
+            if token:
+                locks = list_locks(token)
+                lock_list = locks.get("list", []) if locks else []
+                if lock_list:
+                    print("\nСписок замков:")
+                    for lock in lock_list:
+                        print(f"Lock ID: {lock.get('lockId')}, Name: {lock.get('lockName')}, Alias: {lock.get('lockAlias')}")
+                else:
+                    print("Замки не найдены. Проверьте права доступа.")
+        elif choice == "3":
+            if not token:
+                token = get_token()
+            lid = input_lock_id(current_lock_id)
+            if token and lid:
+                unlock_lock(token, lid)
+        elif choice == "4":
+            if not token:
+                token = get_token()
+            lid = input_lock_id(current_lock_id)
+            if token and lid:
+                lock_lock(token, lid)
+        elif choice == "5":
+            if not token:
+                token = get_token()
+            lid = input_lock_id(current_lock_id)
+            if token and lid:
+                get_lock_status(token, lid)
+        elif choice == "6":
+            new_id = input("Введите новый Lock ID: ").strip()
+            if new_id:
+                current_lock_id = new_id
+                print(f"Lock ID для сессии изменён на: {current_lock_id}")
+        elif choice == "0":
+            print("Выход.")
+            break
         else:
-            print("Замки не найдены. Проверьте права доступа.")
+            print("Некорректный выбор. Попробуйте снова.")
