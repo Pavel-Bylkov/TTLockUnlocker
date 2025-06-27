@@ -1,30 +1,33 @@
 import pytest
-import auto_unlocker
+import os
+import importlib
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock, call
 import schedule
 from datetime import tzinfo
 import telegram_utils
-import importlib
-import os
+
+# Устанавливаем переменные окружения ДО импорта модулей
+os.environ['TELEGRAM_BOT_TOKEN'] = 'test_token'
+os.environ['TELEGRAM_CHAT_ID'] = '123456'
+os.environ['TTLOCK_LOCK_ID'] = 'test_lock_id'
+os.environ['CONFIG_PATH'] = '/tmp/test_config.json'
+os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
+os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
+os.environ['TTLOCK_USERNAME'] = 'test_username'
+os.environ['TTLOCK_PASSWORD'] = 'test_password'
+os.environ['EMAIL_TO'] = 'test@example.com'
+os.environ['SMTP_SERVER'] = 'smtp.example.com'
+os.environ['SMTP_PORT'] = '587'
+os.environ['SMTP_USER'] = 'user'
+os.environ['SMTP_PASSWORD'] = 'password'
+
+# Теперь импортируем модули
+import auto_unlocker
 
 @pytest.fixture(autouse=True)
 def setup_env(monkeypatch):
     """Устанавливает переменные окружения для всех тестов в этом модуле."""
-    monkeypatch.setenv('TELEGRAM_BOT_TOKEN', 'test_token')
-    monkeypatch.setenv('TELEGRAM_CHAT_ID', '123456')
-    monkeypatch.setenv('TTLOCK_LOCK_ID', 'test_lock_id')
-    monkeypatch.setenv('CONFIG_PATH', '/tmp/test_config.json')
-    monkeypatch.setenv("TTLOCK_CLIENT_ID", "test_client_id")
-    monkeypatch.setenv("TTLOCK_CLIENT_SECRET", "test_client_secret")
-    monkeypatch.setenv("TTLOCK_USERNAME", "test_username")
-    monkeypatch.setenv("TTLOCK_PASSWORD", "test_password")
-    monkeypatch.setenv("EMAIL_TO", "test@example.com")
-    monkeypatch.setenv("SMTP_SERVER", "smtp.example.com")
-    monkeypatch.setenv("SMTP_PORT", "587")
-    monkeypatch.setenv("SMTP_USER", "user")
-    monkeypatch.setenv("SMTP_PASSWORD", "password")
-
     # Перезагружаем модуль, чтобы он подхватил переменные окружения
     importlib.reload(auto_unlocker)
     importlib.reload(telegram_utils)
@@ -159,7 +162,7 @@ def test_executor_success_first_try(mock_unlock, mock_send_msg, mock_send_email,
     assert result is True
     mock_unlock.assert_called_once()
     mock_send_msg.assert_called_once_with(
-        'test_token', '123456', '✅ <b>Замок успешно открыт (попытка #1)</b>', mock_logger
+        'test_token', None, '✅ <b>Замок успешно открыт (попытка #1)</b>', mock_logger
     )
     mock_send_email.assert_not_called()
     mock_sleep.assert_not_called()
@@ -185,9 +188,9 @@ def test_executor_success_on_retry(mock_unlock, mock_send_msg, mock_send_email, 
     # 2 сообщения об ошибке + 1 сообщение об успехе
     assert mock_send_msg.call_count == 3
     mock_send_msg.assert_has_calls([
-        call('test_token', '123456', '⚠️ <b>Попытка #1 (открытие замка) не удалась.</b><br>Ошибка: fail 1', mock_logger),
-        call('test_token', '123456', '⚠️ <b>Попытка #2 (открытие замка) не удалась.</b><br>Ошибка: fail 2', mock_logger),
-        call('test_token', '123456', '✅ <b>Замок успешно открыт (попытка #3)</b>', mock_logger)
+        call('test_token', None, '⚠️ <b>Попытка #1 (открытие замка) не удалась.</b><br>Ошибка: fail 1', mock_logger),
+        call('test_token', None, '⚠️ <b>Попытка #2 (открытие замка) не удалась.</b><br>Ошибка: fail 2', mock_logger),
+        call('test_token', None, '✅ <b>Замок успешно открыт (попытка #3)</b>', mock_logger)
     ])
     mock_send_email.assert_not_called()
     # Проверяем, что были вызваны задержки 30с и 60с
@@ -216,9 +219,9 @@ def test_executor_all_retries_fail(mock_unlock, mock_send_msg, mock_send_email, 
 
     # Проверка вызова ключевых уведомлений
     mock_send_msg.assert_has_calls([
-        call('test_token', '123456', '⚠️ <b>Попытка #1 (открытие замка) не удалась.</b><br>Ошибка: critical fail', mock_logger),
-        call('test_token', '123456', '❗️ Не удалось выполнить открытие замка после 5 попыток. Отправляю email.', mock_logger),
-        call('test_token', '123456', '🔥 <b>КРИТИЧЕСКАЯ ОШИБКА:</b> Все 10 попыток открытия замка не удались. Последняя ошибка: critical fail. Требуется ручное вмешательство.', mock_logger)
+        call('test_token', None, '⚠️ <b>Попытка #1 (открытие замка) не удалась.</b><br>Ошибка: critical fail', mock_logger),
+        call('test_token', None, '❗️ Не удалось выполнить открытие замка после 5 попыток. Отправляю email.', mock_logger),
+        call('test_token', None, '🔥 <b>КРИТИЧЕСКАЯ ОШИБКА:</b> Все 10 попыток открытия замка не удались. Последняя ошибка: critical fail. Требуется ручное вмешательство.', mock_logger)
     ], any_order=True)
     mock_send_email.assert_has_calls([
         call(subject='Проблема с TTLock: Замок lock_id', body='Не удалось выполнить открытие замка для замка lock_id после 5 попыток.\nПоследняя ошибка: critical fail'),
