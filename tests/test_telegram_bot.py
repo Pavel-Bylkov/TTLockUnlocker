@@ -16,7 +16,6 @@ from telegram_bot import (
     SETTIMEZONE_VALUE, SETEMAIL_VALUE
 )
 import telegram_bot as bot_module
-import os
 import json
 from unittest.mock import patch, MagicMock, mock_open, ANY
 
@@ -39,7 +38,7 @@ def setup_env(monkeypatch):
     monkeypatch.setenv('TTLOCK_PASSWORD', 'test_password')
     monkeypatch.setenv('TTLOCK_LOCK_ID', '123')
     bot_module.AUTHORIZED_CHAT_ID = '123456'
-    bot_module.CONFIG_PATH = 'config.json'
+    bot_module.CONFIG_PATH = '/tmp/test_config.json'
     # Сброс изменяемых глобальных переменных перед тестом
     bot_module.BLOCKED_CHAT_IDS.clear()
 

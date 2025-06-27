@@ -1,7 +1,6 @@
 import pytest
 import unlocker
 import os
-import json
 from unittest.mock import patch, MagicMock
 
 @pytest.fixture(autouse=True)

@@ -1,14 +1,12 @@
 import pytest
 import auto_unlocker
-import os
-import json
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock, call, mock_open
+from unittest.mock import patch, MagicMock, call
 import schedule
-import pytz
 from datetime import tzinfo
 import telegram_utils
 import importlib
+import os
 
 @pytest.fixture(autouse=True)
 def setup_env(monkeypatch):
@@ -16,7 +14,7 @@ def setup_env(monkeypatch):
     monkeypatch.setenv('TELEGRAM_BOT_TOKEN', 'test_token')
     monkeypatch.setenv('TELEGRAM_CHAT_ID', '123456')
     monkeypatch.setenv('TTLOCK_LOCK_ID', 'test_lock_id')
-    monkeypatch.setenv('CONFIG_PATH', 'config.json')
+    monkeypatch.setenv('CONFIG_PATH', '/tmp/test_config.json')
     monkeypatch.setenv("TTLOCK_CLIENT_ID", "test_client_id")
     monkeypatch.setenv("TTLOCK_CLIENT_SECRET", "test_client_secret")
     monkeypatch.setenv("TTLOCK_USERNAME", "test_username")
@@ -269,9 +267,3 @@ def test_main_schedule_disabled(mock_every, mock_get_token, mock_resolve_lock, m
 
     # schedule.every() не должен был вызываться для дней недели
     mock_every.assert_called_once_with(10) # Только для heartbeat
-
-import os
-import sys
-
-# Добавляем путь к проекту, чтобы можно было импортировать auto_unlocker
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

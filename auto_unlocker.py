@@ -8,18 +8,15 @@
 import requests
 import json
 import time as time_module
-import hashlib
 import urllib3
 import schedule
-from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import ttlock_api
-from typing import Optional, Dict, List, Any, Union
-import re
-from telegram_utils import send_telegram_message, log_message, load_config, save_config, send_email_notification, log_exception
+from typing import Optional, Dict, Any
+from telegram_utils import send_telegram_message, load_config, send_email_notification, log_exception
 import sys
 import traceback
 

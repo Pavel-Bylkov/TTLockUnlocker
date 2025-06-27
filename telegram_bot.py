@@ -16,7 +16,7 @@ from logging.handlers import TimedRotatingFileHandler
 import sys
 import pytz
 import traceback
-from telegram_utils import send_telegram_message, is_authorized, log_exception, send_email_notification, log_message, load_config, save_config
+from telegram_utils import is_authorized, log_exception, send_email_notification, load_config, save_config
 import re
 from typing import Any
 

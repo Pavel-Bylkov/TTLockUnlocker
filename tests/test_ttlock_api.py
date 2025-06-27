@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock, call
 import ttlock_api
-import os
 import requests
 import json
 
