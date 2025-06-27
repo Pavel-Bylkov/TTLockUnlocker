@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Optional, Dict, List, Union, Callable
 
+# Отключаем предупреждения SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 TTLOCK_CLIENT_ID = os.getenv("TTLOCK_CLIENT_ID")
@@ -23,11 +24,11 @@ def get_token(logger: Optional[logging.Logger] = None) -> Optional[str]:
     """
     Получает токен доступа для работы с TTLock API.
     
-    Args:
-        logger: Логгер для записи информации (опционально)
+    Параметры:
+        logger: логгер для записи информации (опционально)
     
-    Returns:
-        str: access_token или None в случае ошибки
+    Возвращает:
+        access_token (str) или None в случае ошибки
     """
     url = "https://euapi.ttlock.com/oauth2/token"
     password_md5 = hashlib.md5(TTLOCK_PASSWORD.encode()).hexdigest()
@@ -56,16 +57,16 @@ def get_token(logger: Optional[logging.Logger] = None) -> Optional[str]:
 def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None, 
                 send_telegram: Optional[Callable] = None) -> Dict[str, Union[int, str, bool]]:
     """
-    Открывает замок с указанным идентификатором.
+    Пытается открыть замок с помощью TTLock API.
     
-    Args:
-        token: access_token для доступа к API
-        lock_id: Идентификатор замка, который нужно открыть
-        logger: Логгер для записи информации (опционально)
-        send_telegram: Функция для отправки сообщений в Telegram (опционально)
+    Параметры:
+        token: access_token
+        lock_id: идентификатор замка
+        logger: логгер (опционально)
+        send_telegram: функция для отправки уведомлений (опционально)
     
-    Returns:
-        dict: Результат операции (errcode, errmsg, success, attempt)
+    Возвращает:
+        dict с результатом операции
     """
     url = "https://euapi.ttlock.com/v3/lock/unlock"
     data = {
@@ -85,14 +86,12 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
             if DEBUG:
                 print(msg)
             time.sleep(delay)
-            
         try:
             response = requests.post(url, data=data, verify=False)
             if DEBUG:
                 print(f"[DEBUG] unlock_lock (попытка {attempt+1}): {response.text}")
             if logger:
                 logger.info(f"Ответ TTLock (unlock, попытка {attempt+1}): {response.text}")
-                
             response_data = response.json()
             if "errcode" in response_data and response_data["errcode"] == 0:
                 msg = f"✅ Замок {lock_id} открыт успешно (попытка {attempt+1})"
@@ -104,7 +103,7 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
                     send_telegram(msg)
                 return {"errcode": 0, "errmsg": "OK", "success": True, "attempt": attempt+1}
             else:
-                msg = f"Ошибка при открытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Unknown error')} (Код: {response_data.get('errcode')})"
+                msg = f"Ошибка при открытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data.get('errcode')})"
                 if logger:
                     logger.error(msg)
                 if DEBUG:
@@ -119,23 +118,22 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-                
     return {"errcode": -1, "errmsg": "Не удалось открыть замок после 3 попыток", "success": False, "attempt": 3}
 
 
 def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
              send_telegram: Optional[Callable] = None) -> Dict[str, Union[int, str, bool]]:
     """
-    Закрывает замок с указанным идентификатором.
+    Пытается закрыть замок с помощью TTLock API.
     
-    Args:
-        token: access_token для доступа к API
-        lock_id: Идентификатор замка, который нужно закрыть
-        logger: Логгер для записи информации (опционально)
-        send_telegram: Функция для отправки сообщений в Telegram (опционально)
+    Параметры:
+        token: access_token
+        lock_id: идентификатор замка
+        logger: логгер (опционально)
+        send_telegram: функция для отправки уведомлений (опционально)
     
-    Returns:
-        dict: Результат операции (errcode, errmsg, success, attempt)
+    Возвращает:
+        dict с результатом операции
     """
     url = "https://euapi.ttlock.com/v3/lock/lock"
     data = {
@@ -155,14 +153,12 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
             if DEBUG:
                 print(msg)
             time.sleep(delay)
-            
         try:
             response = requests.post(url, data=data, verify=False)
             if DEBUG:
                 print(f"[DEBUG] lock_lock (попытка {attempt+1}): {response.text}")
             if logger:
                 logger.info(f"Ответ TTLock (lock, попытка {attempt+1}): {response.text}")
-                
             response_data = response.json()
             if "errcode" in response_data and response_data["errcode"] == 0:
                 msg = f"✅ Замок {lock_id} закрыт успешно (попытка {attempt+1})"
@@ -174,7 +170,7 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
                     send_telegram(msg)
                 return {"errcode": 0, "errmsg": "OK", "success": True, "attempt": attempt+1}
             else:
-                msg = f"Ошибка при закрытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Unknown error')} (Код: {response_data.get('errcode')})"
+                msg = f"Ошибка при закрытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data.get('errcode')})"
                 if logger:
                     logger.error(msg)
                 if DEBUG:
@@ -189,7 +185,6 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
-                
     return {"errcode": -1, "errmsg": "Не удалось закрыть замок после 3 попыток", "success": False, "attempt": 3}
 
 

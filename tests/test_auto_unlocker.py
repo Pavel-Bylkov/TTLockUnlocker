@@ -27,12 +27,11 @@ import auto_unlocker
 
 @pytest.fixture(autouse=True)
 def setup_env(monkeypatch):
-    """Устанавливает переменные окружения для всех тестов в этом модуле."""
-    # Перезагружаем модуль, чтобы он подхватил переменные окружения
+    """
+    Фикстура: перезагружает модули и очищает планировщик перед каждым тестом.
+    """
     importlib.reload(auto_unlocker)
     importlib.reload(telegram_utils)
-
-    # Clear the scheduler before each test
     schedule.clear()
 
     # Сбрасываем глобальную переменную перед каждым тестом
@@ -40,13 +39,17 @@ def setup_env(monkeypatch):
 
 @pytest.fixture
 def mock_logger():
-    """Фикстура для мока логгера."""
+    """
+    Фикстура для мока логгера.
+    """
     with patch('auto_unlocker.logger', MagicMock()) as mock_log:
         yield mock_log
 
 @pytest.fixture
 def mock_config():
-    """Фикстура для тестовой конфигурации."""
+    """
+    Фикстура для тестовой конфигурации.
+    """
     return {
         "timezone": "Asia/Krasnoyarsk",
         "schedule_enabled": True,
@@ -62,22 +65,16 @@ def mock_timezone():
     class MockTimezone(tzinfo):
         def __init__(self, *args, **kwargs):
             pass
-
         def utcoffset(self, dt):
             return timedelta(hours=7)  # Для Asia/Krasnoyarsk
-
         def dst(self, dt):
             return timedelta(0)
-
         def tzname(self, dt):
             return "Asia/Krasnoyarsk"
-
         def localize(self, dt):
             return dt
-
         def normalize(self, dt):
             return dt
-
     with patch('pytz.timezone') as mock_tz:
         mock_tz.return_value = MockTimezone()
         yield mock_tz
@@ -97,7 +94,9 @@ def mock_datetime():
 
 @pytest.fixture
 def mock_get_now():
-    """Фикстура для мока ttlock_api.get_now, возвращает Понедельник 09:00."""
+    """
+    Фикстура для мока ttlock_api.get_now, возвращает Понедельник 09:00.
+    """
     mock_dt = datetime(2025, 6, 16, 9, 0) # Понедельник 09:00
     with patch('ttlock_api.get_now', return_value=mock_dt) as mock_time:
         yield mock_time
@@ -107,7 +106,9 @@ def mock_get_now():
 @patch('auto_unlocker.execute_lock_action_with_retries')
 @patch('auto_unlocker.ttlock_api.get_token', return_value='test_token')
 def test_job_calls_executor_on_time(mock_get_token, mock_executor, mock_config, mock_get_now, mock_logger):
-    """Тест: job вызывает execute_lock_action_with_retries в правильное время."""
+    """
+    Проверяет, что job вызывает execute_lock_action_with_retries в правильное время.
+    """
     with patch('auto_unlocker.load_config', return_value=mock_config):
         auto_unlocker.job()
         mock_executor.assert_called_once_with(
@@ -120,7 +121,9 @@ def test_job_calls_executor_on_time(mock_get_token, mock_executor, mock_config, 
         )
 
 def test_job_does_not_run_if_not_time(mock_config, mock_get_now, mock_logger):
-    """Тест: job не выполняется, если время не совпадает."""
+    """
+    Проверяет, что job не выполняется, если время не совпадает.
+    """
     mock_config["open_times"]["Пн"] = "10:00" # Меняем время на 10:00
     with patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('auto_unlocker.execute_lock_action_with_retries') as mock_executor:
@@ -128,9 +131,10 @@ def test_job_does_not_run_if_not_time(mock_config, mock_get_now, mock_logger):
         mock_executor.assert_not_called()
 
 def test_job_does_not_run_during_break(mock_config, mock_logger):
-    """Тест: job не выполняется во время перерыва."""
-    # Время: Понедельник 13:30, перерыв с 13:00 до 14:00
-    mock_dt = datetime(2025, 6, 16, 13, 30)
+    """
+    Проверяет, что job не выполняется во время перерыва.
+    """
+    mock_dt = datetime(2025, 6, 16, 13, 30)  # Понедельник 13:30, перерыв с 13:00 до 14:00
     with patch('ttlock_api.get_now', return_value=mock_dt), \
          patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('auto_unlocker.execute_lock_action_with_retries') as mock_executor:
@@ -138,7 +142,9 @@ def test_job_does_not_run_during_break(mock_config, mock_logger):
         mock_executor.assert_not_called()
 
 def test_job_does_not_run_if_schedule_disabled(mock_config, mock_get_now, mock_logger):
-    """Тест: job не выполняется, если расписание отключено."""
+    """
+    Проверяет, что job не выполняется, если расписание отключено.
+    """
     mock_config["schedule_enabled"] = False
     with patch('auto_unlocker.load_config', return_value=mock_config), \
          patch('auto_unlocker.execute_lock_action_with_retries') as mock_executor:
@@ -152,7 +158,9 @@ def test_job_does_not_run_if_schedule_disabled(mock_config, mock_get_now, mock_l
 @patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 def test_executor_success_first_try(mock_unlock, mock_send_msg, mock_send_email, mock_sleep, mock_logger):
-    """Тест: исполнитель успешно открывает замок с первой попытки."""
+    """
+    Проверяет, что исполнитель успешно открывает замок с первой попытки.
+    """
     mock_unlock.return_value = {"errcode": 0}
 
     result = auto_unlocker.execute_lock_action_with_retries(
@@ -172,7 +180,9 @@ def test_executor_success_first_try(mock_unlock, mock_send_msg, mock_send_email,
 @patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 def test_executor_success_on_retry(mock_unlock, mock_send_msg, mock_send_email, mock_sleep, mock_logger):
-    """Тест: исполнитель успешно открывает замок на 3-й попытке."""
+    """
+    Проверяет, что исполнитель успешно открывает замок на 3-й попытке.
+    """
     mock_unlock.side_effect = [
         {"errcode": 1, "errmsg": "fail 1"},
         {"errcode": 1, "errmsg": "fail 2"},
@@ -196,13 +206,14 @@ def test_executor_success_on_retry(mock_unlock, mock_send_msg, mock_send_email, 
     # Проверяем, что были вызваны задержки 30с и 60с
     mock_sleep.assert_has_calls([call(30), call(60)])
 
-
 @patch('time.sleep')
 @patch('auto_unlocker.send_email_notification')
 @patch('auto_unlocker.send_telegram_message')
 @patch('auto_unlocker.ttlock_api.unlock_lock')
 def test_executor_all_retries_fail(mock_unlock, mock_send_msg, mock_send_email, mock_sleep, mock_logger):
-    """Тест: все 10 попыток провалились, отправляются все уведомления."""
+    """
+    Проверяет, что при 10 неудачных попытках отправляются все уведомления.
+    """
     mock_unlock.return_value = {"errcode": 1, "errmsg": "critical fail"}
 
     result = auto_unlocker.execute_lock_action_with_retries(
@@ -235,10 +246,11 @@ def test_executor_all_retries_fail(mock_unlock, mock_send_msg, mock_send_email, 
 @patch('auto_unlocker.ttlock_api.get_token', return_value='test_token')
 @patch('schedule.every')
 def test_main_schedules_jobs(mock_every, mock_get_token, mock_resolve_lock, mock_sleep, mock_config, mock_logger):
-    """Тест: main() корректно настраивает расписание."""
+    """
+    Проверяет, что main() корректно настраивает расписание.
+    """
     mock_day = MagicMock()
     mock_every.return_value = mock_day
-
     with patch('auto_unlocker.load_config', return_value=mock_config):
         with pytest.raises(InterruptedError):
             auto_unlocker.main()
@@ -255,18 +267,16 @@ def test_main_schedules_jobs(mock_every, mock_get_token, mock_resolve_lock, mock
     assert mock_day.tuesday.at.call_count == 1
     mock_day.tuesday.at.assert_called_with('10:00')
 
-
 @patch('time.sleep', side_effect=InterruptedError)
 @patch('auto_unlocker.resolve_lock_id', return_value='resolved_lock_id')
 @patch('auto_unlocker.ttlock_api.get_token', return_value='test_token')
 @patch('schedule.every')
 def test_main_schedule_disabled(mock_every, mock_get_token, mock_resolve_lock, mock_sleep, mock_config, mock_logger):
-    """Тест: main() не планирует задачи, если расписание отключено."""
+    """
+    Проверяет, что main() не планирует задачи, если расписание отключено.
+    """
     mock_config['schedule_enabled'] = False
-
     with patch('auto_unlocker.load_config', return_value=mock_config):
         with pytest.raises(InterruptedError):
             auto_unlocker.main()
-
-    # schedule.every() не должен был вызываться для дней недели
     mock_every.assert_called_once_with(10) # Только для heartbeat

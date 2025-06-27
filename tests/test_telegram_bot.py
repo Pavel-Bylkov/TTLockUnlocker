@@ -27,7 +27,7 @@ import pytz
 
 @pytest.fixture(autouse=True)
 def setup_env(monkeypatch):
-    """Настройка окружения и моков для всех тестов."""
+    """Фикстура: настройка окружения и моков для всех тестов."""
     monkeypatch.setenv('TELEGRAM_BOT_TOKEN', 'test_token')
     monkeypatch.setenv('TELEGRAM_CHAT_ID', '123456')
     monkeypatch.setenv('TELEGRAM_CODEWORD', 'secretword')
@@ -45,7 +45,7 @@ def setup_env(monkeypatch):
 
 @pytest.fixture
 def mock_update():
-    """Фикстура для создания мока объекта Update."""
+    """Фикстура: создание мока объекта Update."""
     update = MagicMock(spec=Update)
     update.effective_chat = MagicMock(spec=Chat, id=123456)
     update.message = MagicMock(spec=Message, chat_id=123456, text="test")
@@ -58,7 +58,7 @@ def mock_update():
 
 @pytest.fixture
 def mock_context():
-    """Фикстура для создания мока объекта Context."""
+    """Фикстура: создание мока объекта Context."""
     context = MagicMock()
     context.user_data = {}
     context.bot_data = {}
@@ -67,13 +67,13 @@ def mock_context():
 # ---- Test Cases ----
 
 def test_start_calls_menu(mock_update, mock_context):
-    """Тест: /start должен вызывать menu."""
+    """Тест: команда /start вызывает функцию menu."""
     with patch('telegram_bot.menu') as mock_menu:
         start(mock_update, mock_context)
         mock_menu.assert_called_once_with(mock_update, mock_context)
 
 def test_menu_sends_keyboard(mock_update, mock_context):
-    """Тест: /menu отправляет клавиатуру с командами."""
+    """Тест: команда /menu отправляет клавиатуру с командами."""
     menu(mock_update, mock_context)
     mock_update.message.reply_text.assert_called_once()
     args, kwargs = mock_update.message.reply_text.call_args
@@ -84,13 +84,13 @@ def test_menu_sends_keyboard(mock_update, mock_context):
 # --- setchat Conversation ---
 
 def test_setchat_authorized(mock_update, mock_context):
-    """Тест: /setchat начинает диалог."""
+    """Тест: команда /setchat начинает диалог смены получателя."""
     result = setchat(mock_update, mock_context)
     assert result == ASK_CODEWORD
     mock_update.message.reply_text.assert_called_with("Введите кодовое слово:", parse_mode='HTML', reply_markup=ANY)
 
 def test_setchat_blocked(mock_update, mock_context):
-    """Тест: /setchat для заблокированного пользователя."""
+    """Тест: команда /setchat для заблокированного пользователя."""
     blocked_id = 789
     mock_update.effective_chat.id = blocked_id
     bot_module.BLOCKED_CHAT_IDS.add(blocked_id)
@@ -101,7 +101,7 @@ def test_setchat_blocked(mock_update, mock_context):
     mock_update.message.reply_text.assert_called_with("⛔️ Вы исчерпали лимит попыток смены получателя. Попробуйте позже или обратитесь к администратору.", parse_mode='HTML')
 
 def test_check_codeword_correct(mock_update, mock_context):
-    """Тест: правильное кодовое слово."""
+    """Тест: правильное кодовое слово для смены chat_id."""
     mock_update.message.text = 'secretword'
     result = check_codeword(mock_update, mock_context)
     assert result == CONFIRM_CHANGE
@@ -109,7 +109,7 @@ def test_check_codeword_correct(mock_update, mock_context):
     assert mock_context.user_data['new_chat_id'] == mock_update.message.chat_id
 
 def test_check_codeword_incorrect_and_block(mock_update, mock_context):
-    """Тест: 5 неверных попыток кодового слова приводят к блокировке."""
+    """Тест: блокировка пользователя после 5 неверных попыток кодового слова."""
     chat_id_to_block = 456
     mock_update.effective_chat.id = chat_id_to_block
     mock_update.message.text = 'wrong'
@@ -129,7 +129,7 @@ def test_check_codeword_incorrect_and_block(mock_update, mock_context):
 @patch('builtins.open', new_callable=mock_open, read_data="TELEGRAM_CHAT_ID=123456\n")
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_confirm_change_yes(mock_restart, mock_open_file, mock_update, mock_context):
-    """Тест: подтверждение смены chat_id."""
+    """Тест: подтверждение смены chat_id и запись в .env."""
     mock_update.message.text = 'да'
     new_id = '654321'
     mock_context.user_data['new_chat_id'] = new_id
@@ -200,7 +200,7 @@ def test_status_command(mock_get_token, mock_get_details, mock_update, mock_cont
     assert "<b>Пн:</b> 09:00" in text
 
 def test_logs_command(mock_update, mock_context):
-    """Тест: команда /logs."""
+    """Тест: команда /logs выводит последние логи."""
     log_data = "INFO: log message 1\nDEBUG: log message 2"
     with patch('builtins.open', mock_open(read_data=log_data)):
         with patch('os.path.exists', return_value=True):
@@ -213,7 +213,7 @@ def test_logs_command(mock_update, mock_context):
 
 @patch('ttlock_api.get_token', return_value=None) # Моделируем ошибку получения токена
 def test_status_command_token_error(mock_get_token, mock_update, mock_context):
-    """Тест: /status при ошибке получения токена."""
+    """Тест: команда /status при ошибке получения токена."""
     # Мок для reply_text должен возвращать объект с методом edit_text
     mock_sent_message = MagicMock()
     mock_update.message.reply_text.return_value = mock_sent_message
@@ -232,14 +232,14 @@ def test_status_command_token_error(mock_get_token, mock_update, mock_context):
     assert "❗️ Не удалось получить токен TTLock." in text
 
 def test_logs_command_file_not_found(mock_update, mock_context):
-    """Тест: /logs, когда лог-файл не найден."""
+    """Тест: команда /logs при отсутствии лог-файла."""
     with patch('os.path.exists', return_value=False):
         logs(mock_update, mock_context)
 
     mock_update.message.reply_text.assert_called_once_with("Лог-файл не найден.", parse_mode='HTML')
 
 def test_format_logs_formatting():
-    """Тест: форматирование логов и замена дней недели."""
+    """Тест: форматирование логов и замена дней недели на русском."""
     log_data = "2023-01-01 INFO: some task on monday\n2023-01-02 DEBUG: another task on tuesday"
     expected = "<b>Последние логи сервиса:</b>\n<code>2023-01-01 INFO: some task on Понедельник\n2023-01-02 DEBUG: another task on Вторник</code>"
 
@@ -254,7 +254,7 @@ def test_format_logs_formatting():
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_enable_schedule(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: команда /enable_schedule."""
+    """Тест: команда /enable_schedule включает расписание."""
     with patch('telegram_bot.load_config', return_value={"schedule_enabled": False}) as mock_load:
         enable_schedule(mock_update, mock_context)
         mock_load.assert_called_once()
@@ -264,7 +264,7 @@ def test_enable_schedule(mock_restart, mock_save_config, mock_update, mock_conte
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_disable_schedule(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: команда /disable_schedule."""
+    """Тест: команда /disable_schedule отключает расписание."""
     with patch('telegram_bot.load_config', return_value={"schedule_enabled": True}) as mock_load:
         disable_schedule(mock_update, mock_context)
         mock_load.assert_called_once()
@@ -276,7 +276,7 @@ def test_disable_schedule(mock_restart, mock_save_config, mock_update, mock_cont
 @patch('ttlock_api.unlock_lock')
 @patch('ttlock_api.get_token', return_value='test_token')
 def test_open_lock_success(mock_get_token, mock_unlock, mock_update, mock_context):
-    """Тест: успешное открытие замка /open."""
+    """Тест: успешное открытие замка через /open."""
     mock_unlock.return_value = {'errcode': 0, 'attempt': 1}
     open_lock(mock_update, mock_context)
     mock_get_token.assert_called_once()
@@ -285,14 +285,14 @@ def test_open_lock_success(mock_get_token, mock_unlock, mock_update, mock_contex
 
 @patch('ttlock_api.get_token', return_value=None)
 def test_open_lock_no_token(mock_get_token, mock_update, mock_context):
-    """Тест: /open, когда не удалось получить токен."""
+    """Тест: команда /open при ошибке получения токена."""
     open_lock(mock_update, mock_context)
     mock_get_token.assert_called_once()
     mock_update.message.reply_text.assert_any_call("Ошибка при открытии замка: Не удалось получить токен.", parse_mode='HTML')
 
 @patch('ttlock_api.get_token', side_effect=Exception("Unexpected error"))
 def test_open_lock_exception(mock_get_token, mock_update, mock_context):
-    """Тест: /open, когда возникает непредвиденная ошибка."""
+    """Тест: команда /open при неожиданной ошибке."""
     open_lock(mock_update, mock_context)
     mock_get_token.assert_called_once()
     mock_update.message.reply_text.assert_any_call("Ошибка при открытии замка: Unexpected error", parse_mode='HTML')
@@ -300,7 +300,7 @@ def test_open_lock_exception(mock_get_token, mock_update, mock_context):
 @patch('ttlock_api.lock_lock')
 @patch('ttlock_api.get_token', return_value='test_token')
 def test_close_lock_success(mock_get_token, mock_lock, mock_update, mock_context):
-    """Тест: успешное закрытие замка /close."""
+    """Тест: успешное закрытие замка через /close."""
     mock_lock.return_value = {'errcode': 0, 'attempt': 1}
     close_lock(mock_update, mock_context)
     mock_get_token.assert_called_once()
@@ -309,14 +309,14 @@ def test_close_lock_success(mock_get_token, mock_lock, mock_update, mock_context
 
 @patch('ttlock_api.get_token', return_value=None)
 def test_close_lock_no_token(mock_get_token, mock_update, mock_context):
-    """Тест: /close, когда не удалось получить токен."""
+    """Тест: команда /close при ошибке получения токена."""
     close_lock(mock_update, mock_context)
     mock_get_token.assert_called_once()
     mock_update.message.reply_text.assert_any_call("Ошибка при закрытии замка: Не удалось получить токен.", parse_mode='HTML')
 
 @patch('ttlock_api.get_token', side_effect=Exception("Unexpected error"))
 def test_close_lock_exception(mock_get_token, mock_update, mock_context):
-    """Тест: /close, когда возникает непредвиденная ошибка."""
+    """Тест: команда /close при неожиданной ошибке."""
     close_lock(mock_update, mock_context)
     mock_get_token.assert_called_once()
     mock_update.message.reply_text.assert_any_call("Ошибка при закрытии замка: Unexpected error", parse_mode='HTML')
@@ -324,7 +324,7 @@ def test_close_lock_exception(mock_get_token, mock_update, mock_context):
 # --- settime Conversation ---
 
 def test_settime_starts_conversation(mock_update, mock_context):
-    """Тест: /settime начинает диалог выбора дня."""
+    """Тест: команда /settime начинает диалог выбора дня недели."""
     result = settime(mock_update, mock_context)
     assert result == SETTIME_DAY
     mock_update.message.reply_text.assert_called_once()
@@ -333,7 +333,7 @@ def test_settime_starts_conversation(mock_update, mock_context):
     assert isinstance(kwargs['reply_markup'], InlineKeyboardMarkup)
 
 def test_handle_settime_callback(mock_update, mock_context):
-    """Тест: выбор дня в /settime."""
+    """Тест: выбор дня недели в диалоге /settime."""
     mock_update.callback_query.data = "Пн"
     result = handle_settime_callback(mock_update, mock_context)
     assert result == SETTIME_VALUE
@@ -346,7 +346,7 @@ def test_handle_settime_callback(mock_update, mock_context):
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_settime_value_valid(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: установка корректного времени."""
+    """Тест: установка корректного времени открытия."""
     mock_update.message.text = "09:30"
     mock_context.user_data['day'] = "Пн"
     with patch('telegram_bot.load_config', return_value={"open_times": {}}) as mock_load:
@@ -358,7 +358,7 @@ def test_settime_value_valid(mock_restart, mock_save_config, mock_update, mock_c
         mock_restart.assert_called_once()
 
 def test_settime_value_invalid(mock_update, mock_context):
-    """Тест: некорректный формат времени в /settime."""
+    """Тест: некорректный формат времени в диалоге /settime."""
     mock_update.message.text = 'invalid-time'
     result = settime_value(mock_update, mock_context)
     assert result == SETTIME_VALUE
@@ -367,7 +367,7 @@ def test_settime_value_invalid(mock_update, mock_context):
     )
 
 def test_settime_value_invalid_range(mock_update, mock_context):
-    """Тест: некорректный диапазон времени в /settime (например, 25:00)."""
+    """Тест: некорректный диапазон времени в диалоге /settime."""
     mock_update.message.text = '25:00'
     result = settime_value(mock_update, mock_context)
     assert result == SETTIME_VALUE
@@ -378,14 +378,14 @@ def test_settime_value_invalid_range(mock_update, mock_context):
 # --- setbreak Conversation ---
 
 def test_setbreak_starts_conversation(mock_update, mock_context):
-    """Тест: /setbreak начинает диалог."""
+    """Тест: команда /setbreak начинает диалог выбора дня недели для перерыва."""
     result = setbreak(mock_update, mock_context)
     assert result == SETBREAK_DAY
     mock_update.message.reply_text.assert_called_once()
     assert isinstance(mock_update.message.reply_text.call_args[1]['reply_markup'], InlineKeyboardMarkup)
 
 def test_handle_setbreak_callback(mock_update, mock_context):
-    """Тест: выбор дня в /setbreak."""
+    """Тест: выбор дня недели для перерыва в диалоге /setbreak."""
     mock_update.callback_query.data = "setbreak_Вт"
     result = handle_setbreak_callback(mock_update, mock_context)
     assert result == SETBREAK_ACTION
@@ -393,7 +393,7 @@ def test_handle_setbreak_callback(mock_update, mock_context):
     mock_update.callback_query.edit_message_text.assert_called_once()
 
 def test_handle_setbreak_action_add(mock_update, mock_context):
-    """Тест: выбор 'Добавить' перерыв."""
+    """Тест: выбор действия 'Добавить' для перерыва."""
     mock_update.callback_query.data = "add_break"
     result = handle_setbreak_action(mock_update, mock_context)
     assert result == SETBREAK_ADD
@@ -424,7 +424,7 @@ def test_handle_setbreak_action_remove_with_breaks(mock_update, mock_context):
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_setbreak_add_valid(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: добавление корректного перерыва."""
+    """Тест: добавление корректного перерыва для дня недели."""
     mock_update.message.text = "13:00-14:00"
     mock_context.user_data['day'] = "Вт"
     with patch('telegram_bot.load_config', return_value={"breaks": {}}) as mock_load:
@@ -438,7 +438,7 @@ def test_setbreak_add_valid(mock_restart, mock_save_config, mock_update, mock_co
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_setbreak_remove_valid(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: удаление существующего перерыва."""
+    """Тест: удаление существующего перерыва для дня недели."""
     mock_update.message.text = "13:00-14:00"
     mock_context.user_data['day'] = "Вт"
     config = {"breaks": {"Вт": ["13:00-14:00", "15:00-16:00"]}}
@@ -453,7 +453,7 @@ def test_setbreak_remove_valid(mock_restart, mock_save_config, mock_update, mock
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_setbreak_add_invalid_format(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: некорректный формат перерыва."""
+    """Тест: некорректный формат строки перерыва."""
     mock_update.message.text = "invalid"
     result = setbreak_add(mock_update, mock_context)
     assert result == SETBREAK_ADD
@@ -473,7 +473,7 @@ def test_setbreak_add_invalid_time_range(mock_update, mock_context):
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_setbreak_remove_not_found(mock_restart, mock_save_config, mock_update, mock_context):
-    """Тест: удаление несуществующего перерыва."""
+    """Тест: попытка удалить несуществующий перерыв."""
     mock_update.message.text = "10:00-11:00"
     mock_context.user_data['day'] = "Пн"
     config_data = {"breaks": {"Пн": ["12:00-13:00"]}}
@@ -485,18 +485,18 @@ def test_setbreak_remove_not_found(mock_restart, mock_save_config, mock_update, 
 # --- settimezone Conversation ---
 
 def test_settimezone_starts_conversation(mock_update, mock_context):
-    """Тест: /settimezone начинает диалог."""
+    """Тест: команда /settimezone начинает диалог выбора часового пояса."""
     result = settimezone(mock_update, mock_context)
     assert result == SETTIMEZONE_VALUE
     mock_update.message.reply_text.assert_called_once_with(
         "Введите часовой пояс (например, Europe/Moscow):", parse_mode='HTML'
     )
 
-@patch('pytz.timezone', return_value=True) # Просто чтобы пройти проверку
+@patch('pytz.timezone', return_value=True)
 @patch('telegram_bot.save_config')
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_settimezone_apply(mock_restart, mock_save_config, mock_pytz, mock_update, mock_context):
-    """Тест: успешное применение часового пояса."""
+    """Тест: успешное применение нового часового пояса."""
     mock_update.message.text = "Europe/Moscow"
     with patch('telegram_bot.load_config', return_value={}) as mock_load:
         result = settimezone_apply(mock_update, mock_context)
@@ -521,7 +521,7 @@ def test_settimezone_apply_invalid(mock_update, mock_context):
 @patch('builtins.open', new_callable=mock_open, read_data="EMAIL_TO=old@mail.com\n")
 @patch('telegram_bot.restart_auto_unlocker_and_notify')
 def test_setemail_value(mock_restart, mock_open_file, mock_update, mock_context):
-    """Тест: установка email."""
+    """Тест: установка email для уведомлений."""
     mock_update.message.text = "new@mail.com"
     result = setemail_value(mock_update, mock_context)
 
@@ -531,7 +531,7 @@ def test_setemail_value(mock_restart, mock_open_file, mock_update, mock_context)
     assert result == ConversationHandler.END
 
 def test_setemail_value_invalid_format(mock_update, mock_context):
-    """Тест: некорректный формат email."""
+    """Тест: некорректный формат email адреса."""
     mock_update.message.text = 'invalid-email'
     result = setemail_value(mock_update, mock_context)
     assert result == SETEMAIL_VALUE
@@ -541,14 +541,14 @@ def test_setemail_value_invalid_format(mock_update, mock_context):
 
 @patch('telegram_bot.send_email_notification', return_value=True)
 def test_test_email_success(mock_send_email, mock_update, mock_context):
-    """Тест: успешная отправка тестового email."""
+    """Тест: успешная отправка тестового email-сообщения."""
     do_test_email(mock_update, mock_context)
     mock_send_email.assert_called_once()
     mock_update.message.reply_text.assert_any_call("✅ Сообщение успешно отправлено!", parse_mode='HTML')
 
 @patch('telegram_bot.send_email_notification', return_value=False)
 def test_do_test_email_failure(mock_send_email, mock_update, mock_context):
-    """Тест: неудачная отправка тестового email."""
+    """Тест: неудачная отправка тестового email-сообщения."""
     do_test_email(mock_update, mock_context)
     mock_send_email.assert_called_once()
     mock_update.message.reply_text.assert_any_call(
@@ -558,7 +558,7 @@ def test_do_test_email_failure(mock_send_email, mock_update, mock_context):
 
 @patch('docker.from_env')
 def test_restart_auto_unlocker_cmd(mock_docker, mock_update, mock_context):
-    """Тест: команда /restart_auto_unlocker."""
+    """Тест: команда /restart_auto_unlocker перезапускает сервис автооткрытия."""
     mock_container = MagicMock()
     mock_docker.return_value.containers.get.return_value = mock_container
 

@@ -17,7 +17,7 @@ from telegram_utils import (
 # --- Mocks and Fixtures ---
 
 class DummyUpdate:
-    """A dummy class to mock the telegram.Update object."""
+    """Заглушка для имитации объекта telegram.Update."""
     class Chat:
         def __init__(self, id):
             self.id = id
@@ -26,23 +26,23 @@ class DummyUpdate:
 
 @pytest.fixture
 def mock_logger():
-    """Fixture for a mock logger."""
+    """Фикстура для создания мок-логгера."""
     return MagicMock()
 
 # --- Tests for is_authorized ---
 
 def test_is_authorized_true():
-    """Test that is_authorized returns True for the correct chat_id."""
+    """Проверяет, что is_authorized возвращает True для правильного chat_id."""
     update = DummyUpdate(123)
     assert is_authorized(update, 123) is True
 
 def test_is_authorized_false():
-    """Test that is_authorized returns False for an incorrect chat_id."""
+    """Проверяет, что is_authorized возвращает False для неправильного chat_id."""
     update = DummyUpdate(123)
     assert is_authorized(update, 456) is False
 
 def test_is_authorized_string_comparison():
-    """Test that is_authorized works correctly when IDs are passed as strings."""
+    """Проверяет, что is_authorized корректно работает при сравнении строк и чисел."""
     update = DummyUpdate('123')
     assert is_authorized(update, 123) is True
     update = DummyUpdate(123)
@@ -52,7 +52,7 @@ def test_is_authorized_string_comparison():
 
 @patch('requests.post')
 def test_send_telegram_message_success(mock_post, mock_logger):
-    """Test successful sending of a Telegram message."""
+    """Проверяет успешную отправку сообщения в Telegram."""
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_post.return_value = mock_response
@@ -67,7 +67,7 @@ def test_send_telegram_message_success(mock_post, mock_logger):
 
 @patch('requests.post')
 def test_send_telegram_message_with_env_chat_id(mock_post, mock_logger, monkeypatch):
-    """Test sending a Telegram message using chat_id from environment variables."""
+    """Проверяет отправку сообщения в Telegram с chat_id из переменных окружения."""
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_post.return_value = mock_response
@@ -83,7 +83,7 @@ def test_send_telegram_message_with_env_chat_id(mock_post, mock_logger, monkeypa
 
 @patch('requests.post')
 def test_send_telegram_message_no_chat_id(mock_post, mock_logger, monkeypatch):
-    """Test sending a Telegram message when no chat_id is provided and not in env."""
+    """Проверяет поведение при отсутствии chat_id и переменной окружения."""
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
 
     result = send_telegram_message('token', None, 'test', mock_logger)
@@ -94,7 +94,7 @@ def test_send_telegram_message_no_chat_id(mock_post, mock_logger, monkeypatch):
 
 @patch('requests.post')
 def test_send_telegram_message_http_error(mock_post, mock_logger):
-    """Test handling of an HTTP error when sending a Telegram message."""
+    """Проверяет обработку HTTP-ошибки при отправке сообщения в Telegram."""
     mock_response = MagicMock()
     mock_response.status_code = 400
     mock_response.text = 'Bad Request'
@@ -107,7 +107,7 @@ def test_send_telegram_message_http_error(mock_post, mock_logger):
 
 @patch('requests.post', side_effect=requests.exceptions.RequestException("Network Error"))
 def test_send_telegram_message_network_error(mock_post, mock_logger):
-    """Test handling of a network error when sending a Telegram message."""
+    """Проверяет обработку сетевой ошибки при отправке сообщения в Telegram."""
     send_telegram_message('token', 123, 'test', mock_logger)
     
     mock_post.assert_called_once()
@@ -116,7 +116,7 @@ def test_send_telegram_message_network_error(mock_post, mock_logger):
 # --- Tests for load_config ---
 
 def test_load_config_success(mock_logger):
-    """Test successful loading of a config file."""
+    """Проверяет успешную загрузку конфигурационного файла."""
     m = mock_open(read_data='{"key": "value"}')
     with patch('builtins.open', m):
         config = load_config('fake_path.json', mock_logger)
@@ -124,14 +124,14 @@ def test_load_config_success(mock_logger):
         mock_logger.debug.assert_called()
 
 def test_load_config_file_not_found(mock_logger):
-    """Test loading config when the file does not exist."""
+    """Проверяет загрузку конфигурации, когда файл не найден."""
     with patch('builtins.open', side_effect=FileNotFoundError("File not found")):
         config = load_config('fake_path.json', mock_logger, default={"default": True})
         assert config == {"default": True}
         mock_logger.error.assert_called_once_with("Ошибка чтения конфигурации: File not found")
 
 def test_load_config_invalid_json(mock_logger):
-    """Test loading config with invalid JSON content."""
+    """Проверяет загрузку конфигурации с некорректным JSON."""
     m = mock_open(read_data='invalid json')
     with patch('builtins.open', m):
         config = load_config('fake_path.json', mock_logger, default={"default": True})
@@ -141,7 +141,7 @@ def test_load_config_invalid_json(mock_logger):
 # --- Tests for save_config ---
 
 def test_save_config_success(mock_logger):
-    """Test successful saving of a config file."""
+    """Проверяет успешное сохранение конфигурационного файла."""
     m = mock_open()
     with patch('builtins.open', m):
         save_config({"key": "value"}, 'fake_path.json', mock_logger)
@@ -154,7 +154,7 @@ def test_save_config_success(mock_logger):
         mock_logger.debug.assert_called()
 
 def test_save_config_write_error(mock_logger):
-    """Test handling of a write error when saving a config file."""
+    """Проверяет обработку ошибки записи при сохранении конфигурационного файла."""
     m = mock_open()
     m.side_effect = IOError("Permission denied")
     with patch('builtins.open', m):
@@ -165,7 +165,7 @@ def test_save_config_write_error(mock_logger):
 # --- Tests for log_exception ---
 
 def test_log_exception(mock_logger):
-    """Test that log_exception logs the current traceback."""
+    """Проверяет, что log_exception логирует текущий traceback."""
     try:
         raise ValueError("Test exception")
     except ValueError:
@@ -182,7 +182,7 @@ def test_log_exception(mock_logger):
 
 @patch('smtplib.SMTP_SSL')
 def test_send_email_notification_success(mock_smtp, mock_logger, monkeypatch):
-    """Test successful sending of an email notification."""
+    """Проверяет успешную отправку email-уведомления."""
     monkeypatch.setenv("EMAIL_TO", "to@example.com")
     monkeypatch.setenv("SMTP_SERVER", "smtp.example.com")
     monkeypatch.setenv("SMTP_PORT", "465")
@@ -199,7 +199,7 @@ def test_send_email_notification_success(mock_smtp, mock_logger, monkeypatch):
     
 @patch('telegram_utils.logger')
 def test_send_email_notification_missing_env_vars(mock_logger_direct, monkeypatch):
-    """Test email sending when environment variables are missing."""
+    """Проверяет отправку email при отсутствии необходимых переменных окружения."""
     monkeypatch.delenv("EMAIL_TO", raising=False)
     
     result = send_email_notification("Subject", "Body")
@@ -211,7 +211,7 @@ def test_send_email_notification_missing_env_vars(mock_logger_direct, monkeypatc
 
 @patch('smtplib.SMTP_SSL', side_effect=smtplib.SMTPException("SMTP Error"))
 def test_send_email_notification_smtp_error(mock_smtp, mock_logger, monkeypatch):
-    """Test handling of an SMTP error during email sending."""
+    """Проверяет обработку SMTP-ошибки при отправке email-уведомления."""
     monkeypatch.setenv("EMAIL_TO", "to@example.com")
     monkeypatch.setenv("SMTP_SERVER", "smtp.example.com")
     monkeypatch.setenv("SMTP_PORT", "465")
@@ -226,21 +226,21 @@ def test_send_email_notification_smtp_error(mock_smtp, mock_logger, monkeypatch)
 
 @patch('builtins.print')
 def test_log_message_error(mock_print, mock_logger):
-    """Test logging of an ERROR level message."""
+    """Проверяет логирование сообщения уровня ERROR."""
     log_message(mock_logger, "ERROR", "Error message")
     mock_print.assert_called_once_with("[ERROR] Error message")
     mock_logger.error.assert_called_once_with("Error message")
 
 @patch('builtins.print')
 def test_log_message_info(mock_print, mock_logger):
-    """Test logging of an INFO level message."""
+    """Проверяет логирование сообщения уровня INFO."""
     log_message(mock_logger, "INFO", "Info message")
     mock_print.assert_called_once_with("[INFO] Info message")
     mock_logger.info.assert_called_once_with("Info message")
 
 @patch('builtins.print')
 def test_log_message_debug(mock_print, mock_logger):
-    """Test logging of a DEBUG level message."""
+    """Проверяет логирование сообщения уровня DEBUG."""
     log_message(mock_logger, "DEBUG", "Debug message")
     mock_print.assert_called_once_with("[DEBUG] Debug message")
     mock_logger.debug.assert_called_once_with("Debug message") 

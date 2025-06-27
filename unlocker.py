@@ -12,8 +12,7 @@ import os
 from dotenv import load_dotenv
 import ttlock_api
 
-
-# Disable SSL verification warnings
+# Отключаем предупреждения SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
@@ -29,16 +28,20 @@ password = os.getenv("TTLOCK_PASSWORD")
 lock_id = os.getenv("TTLOCK_LOCK_ID")
 
 MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+RETRY_DELAY = 2  # секунд
 
 def init():
-    """Инициализация модуля, проверка переменных окружения"""
+    """
+    Инициализация модуля, проверка переменных окружения.
+    """
     if not all([client_id, client_secret, username, password]):
         raise RuntimeError("Не заданы все переменные окружения TTLOCK_CLIENT_ID, TTLOCK_CLIENT_SECRET, TTLOCK_USERNAME, TTLOCK_PASSWORD. Проверьте .env файл!")
 
 
 def debug_request(name, url, data, response):
-    """Печатает подробную отладочную информацию о каждом HTTP-запросе и ответе."""
+    """
+    Печатает подробную отладочную информацию о каждом HTTP-запросе и ответе.
+    """
     print(f"\n[DEBUG] {name}")
     print(f"URL: {url}")
     print(f"Параметры запроса: {json.dumps(data, ensure_ascii=False)}")
@@ -80,7 +83,9 @@ def get_lock_status(token, lock_id):
 
 
 def lock_lock(token, lock_id):
-    """Пытается закрыть замок с указанным lock_id через облако."""
+    """
+    Пытается закрыть замок с указанным lock_id через облако.
+    """
     url = "https://euapi.ttlock.com/v3/lock/lock"
     data = {
         "clientId": client_id,
@@ -106,7 +111,7 @@ def lock_lock(token, lock_id):
                         print("Замок занят. Достигнут лимит попыток. Попробуйте позже.")
                         return False
                 else:
-                    print(f"Ошибка при закрытии: {response_data.get('errmsg', 'Unknown error')} (Код: {response_data['errcode']})")
+                    print(f"Ошибка при закрытии: {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data['errcode']})")
                     return False
             else:
                 print("Неожиданный формат ответа:", response_data)
@@ -118,7 +123,9 @@ def lock_lock(token, lock_id):
 
 
 def get_token():
-    """Получает access_token для TTLock Cloud API по логину/паролю владельца аккаунта."""
+    """
+    Получает access_token для TTLock Cloud API по логину/паролю владельца аккаунта.
+    """
     url = "https://euapi.ttlock.com/oauth2/token"
     password_md5 = hashlib.md5(password.encode()).hexdigest()
     data = {
@@ -139,7 +146,9 @@ def get_token():
 
 
 def list_locks(token):
-    """Запрашивает список замков, доступных для данного access_token (только для владельца)."""
+    """
+    Запрашивает список замков, доступных для данного access_token (только для владельца).
+    """
     url = "https://euapi.ttlock.com/v3/lock/list"
     data = {
         "clientId": client_id,
@@ -159,7 +168,7 @@ def list_locks(token):
                     print(f"Lock ID: {lock.get('lockId')}, Name: {lock.get('lockName')}, Alias: {lock.get('lockAlias')}")
                 return response_data
             else:
-                print(f"Ошибка получения списка: {response_data.get('errmsg', 'Unknown error')} (Код: {response_data['errcode']})")
+                print(f"Ошибка получения списка: {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data['errcode']})")
                 return {}
     except Exception as e:
         print(f"Ошибка получения списка замков: {str(e)}")
@@ -168,7 +177,9 @@ def list_locks(token):
 
 
 def unlock_lock(token, lock_id):
-    """Пытается открыть замок с указанным lock_id через облако."""
+    """
+    Пытается открыть замок с указанным lock_id через облако.
+    """
     url = "https://euapi.ttlock.com/v3/lock/unlock"
     data = {
         "clientId": client_id,
@@ -194,7 +205,7 @@ def unlock_lock(token, lock_id):
                         print("Замок занят. Достигнут лимит попыток. Попробуйте позже.")
                         return False
                 else:
-                    print(f"Ошибка при открытии: {response_data.get('errmsg', 'Unknown error')} (Код: {response_data['errcode']})")
+                    print(f"Ошибка при открытии: {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data['errcode']})")
                     print(f"Использован lock ID: {lock_id}")
                     return False
             else:
@@ -207,7 +218,7 @@ def unlock_lock(token, lock_id):
 
 
 if __name__ == "__main__":
-    # Main execution
+    # Основной запуск
     token = ttlock_api.get_token()
 
     if token:

@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 
 @pytest.fixture(autouse=True)
 def setup_env():
+    """Фикстура: установка переменных окружения для тестов и их очистка после выполнения."""
     os.environ['TTLOCK_PASSWORD'] = 'test_password'
     os.environ['TTLOCK_CLIENT_ID'] = 'test_client_id'
     os.environ['TTLOCK_CLIENT_SECRET'] = 'test_client_secret'
@@ -16,6 +17,7 @@ def setup_env():
         os.environ.pop(key, None)
 
 def test_get_token_success():
+    """Тест: успешное получение токена."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {'access_token': 'test_token'}
@@ -27,6 +29,7 @@ def test_get_token_success():
         mock_post.assert_called_once()
 
 def test_get_token_failure():
+    """Тест: неудачное получение токена (ошибка авторизации)."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {'error': 'invalid credentials'}
@@ -37,6 +40,7 @@ def test_get_token_failure():
         assert token is None
 
 def test_unlock_lock_success():
+    """Тест: успешное открытие замка."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {'errcode': 0}
@@ -47,6 +51,7 @@ def test_unlock_lock_success():
         mock_post.assert_called_once()
 
 def test_unlock_lock_busy():
+    """Тест: замок занят, повторные попытки открытия."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {'errcode': -3037}
@@ -57,6 +62,7 @@ def test_unlock_lock_busy():
         assert mock_post.call_count == 3  # Проверяем, что было 3 попытки
 
 def test_lock_lock_success():
+    """Тест: успешное закрытие замка."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {'errcode': 0}
@@ -67,6 +73,7 @@ def test_lock_lock_success():
         mock_post.assert_called_once()
 
 def test_get_lock_status():
+    """Тест: получение статуса замка."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {'errcode': 0, 'lockStatus': 1}
@@ -77,6 +84,7 @@ def test_get_lock_status():
         mock_post.assert_called_once()
 
 def test_list_locks():
+    """Тест: получение списка замков."""
     with patch('requests.post') as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {

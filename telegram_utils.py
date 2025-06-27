@@ -13,11 +13,11 @@ def send_telegram_message(token, chat_id=None, text=None, logger=None):
     """
     Отправляет сообщение в Telegram.
 
-    Args:
-        token: Токен бота
+    Параметры:
+        token: токен бота
         chat_id: ID чата для отправки (если None, читается из TELEGRAM_CHAT_ID)
-        text: Текст сообщения
-        logger: Логгер для записи ошибок (опционально)
+        text: текст сообщения
+        logger: логгер для записи ошибок (опционально)
     """
     # Если chat_id не передан, читаем из переменных окружения
     if chat_id is None:
@@ -46,7 +46,7 @@ def log_message(logger, level, message):
     """
     Унифицированная функция для логирования сообщений.
     
-    Args:
+    Параметры:
         logger: объект логгера
         level: строка ('ERROR', 'INFO', 'DEBUG')
         message: текст сообщения
@@ -65,6 +65,11 @@ def log_message(logger, level, message):
 def load_config(config_path, logger=None, default=None):
     """
     Загружает конфиг из файла. Возвращает default при ошибке.
+    
+    Параметры:
+        config_path: путь к файлу конфигурации
+        logger: логгер (опционально)
+        default: значения по умолчанию (опционально)
     """
     if default is None:
         default = {}
@@ -83,6 +88,11 @@ def load_config(config_path, logger=None, default=None):
 def save_config(config, config_path, logger=None):
     """
     Сохраняет конфиг в файл.
+    
+    Параметры:
+        config: словарь конфигурации
+        config_path: путь к файлу
+        logger: логгер (опционально)
     """
     try:
         if logger:
@@ -99,11 +109,11 @@ def is_authorized(update, authorized_chat_id):
     """
     Проверяет, авторизован ли пользователь.
     
-    Args:
-        update: Объект обновления Telegram
-        authorized_chat_id: Разрешенный ID чата
+    Параметры:
+        update: объект обновления Telegram
+        authorized_chat_id: разрешённый ID чата
     
-    Returns:
+    Возвращает:
         bool: True если пользователь авторизован, False в противном случае
     """
     return str(update.effective_chat.id) == str(authorized_chat_id)
@@ -113,8 +123,8 @@ def log_exception(logger):
     """
     Логирует текущий стек вызовов.
     
-    Args:
-        logger: Логгер для записи ошибки
+    Параметры:
+        logger: логгер для записи ошибки
     """
     logger.error(traceback.format_exc())
 
@@ -122,6 +132,13 @@ def log_exception(logger):
 def send_email_notification(subject: str, body: str):
     """
     Отправляет email-уведомление.
+    
+    Параметры:
+        subject: тема письма
+        body: текст письма
+    
+    Возвращает:
+        True — если письмо отправлено, иначе False
     """
     EMAIL_TO = os.getenv("EMAIL_TO")
     SMTP_SERVER = os.getenv("SMTP_SERVER")

@@ -105,20 +105,20 @@ LOG_FILENAME = "logs/auto_unlocker.log"
 
 def execute_lock_action_with_retries(action_func, token: str, lock_id: str, action_name: str, success_msg: str, failure_msg_part: str) -> bool:
     """
-    Выполняет действие с замком, используя определенный график повторных попыток.
+    Выполняет действие с замком с повторными попытками по расписанию задержек.
 
-    Args:
-        action_func: Функция для вызова (ttlock_api.unlock_lock или ttlock_api.lock_lock).
-        token: Токен TTLock API.
-        lock_id: ID замка.
-        action_name: Название действия для логов (например, "открытия").
-        success_msg: Сообщение для логов и Telegram при успехе (например, "открыт").
-        failure_msg_part: Часть сообщения для уведомлений о сбое (например, "открытие замка").
+    Параметры:
+        action_func: функция для вызова (например, ttlock_api.unlock_lock или ttlock_api.lock_lock)
+        token: токен TTLock API
+        lock_id: идентификатор замка
+        action_name: название действия для логов (например, "открытия")
+        success_msg: сообщение для логов и Telegram при успехе (например, "открыт")
+        failure_msg_part: часть сообщения для уведомлений о сбое (например, "открытие замка")
 
-    Returns:
-        True, если действие выполнено успешно, иначе False.
+    Возвращает:
+        True — если действие выполнено успешно, иначе False.
     """
-    # Задержки в секундах между попытками: 30с, 1м, 5м, 10м, и 5 раз по 15м
+    # Задержки между попытками: 30с, 1м, 5м, 10м, и 5 раз по 15м
     delays = [30, 60, 5 * 60, 10 * 60] + [15 * 60] * 5
     total_attempts = len(delays) + 1
     last_error = "Неизвестная ошибка"
@@ -135,7 +135,7 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
         last_error = response.get('errmsg', 'Неизвестная ошибка') if response else 'Ответ от API не получен'
         logger.error(f"Попытка #{attempt} не удалась: {last_error}")
 
-        # Собираем детальную информацию о замке для логов
+        # Получаем подробную информацию о замке для логов
         details_msg = ""
         details = ttlock_api.get_lock_status_details(token, lock_id, logger)
         if any(details.values()):
@@ -145,7 +145,7 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
             details_msg = f"<br>  - Детали: Сеть <b>{status}</b>, Заряд <b>{battery}%</b>, Посл. действие: <b>{last_action}</b>"
             logger.info(f"Дополнительная информация о замке: Сеть={status}, Заряд={battery}%, Посл. действие={last_action}")
 
-        # Отправляем уведомление в телеграм о каждой неудаче
+        # Отправляем уведомление в Telegram о каждой неудаче
         send_telegram_message(
             telegram_token,
             None,
@@ -184,11 +184,11 @@ def debug_request(name: str, url: str, data: Dict[str, Any], response: requests.
     """
     Подробный отладочный вывод HTTP-запроса и ответа.
 
-    Args:
-        name: Название операции
+    Параметры:
+        name: название операции
         url: URL запроса
-        data: Данные запроса
-        response: Ответ requests
+        data: данные запроса
+        response: ответ requests
     """
     logger.debug(f"===== HTTP DEBUG: {name} =====")
     logger.debug(f"URL: {url}")
@@ -202,13 +202,13 @@ def debug_request(name: str, url: str, data: Dict[str, Any], response: requests.
 
 def resolve_lock_id(token: str) -> Optional[str]:
     """
-    Пытается получить lock_id из .env, либо из первого замка в списке.
+    Получает lock_id из .env или из первого замка в списке пользователя.
 
-    Args:
+    Параметры:
         token: access_token
 
-    Returns:
-        str: lock_id или None в случае ошибки
+    Возвращает:
+        lock_id (str) или None в случае ошибки.
     """
     lock_id_env = os.getenv("TTLOCK_LOCK_ID")
     if lock_id_env:
@@ -232,8 +232,8 @@ def resolve_lock_id(token: str) -> Optional[str]:
 
 def job() -> None:
     """
-    Основная задача: проверяет время и открывает замок если нужно.
-    При неудаче делает повторные попытки с новой логикой.
+    Основная задача: проверяет время и открывает замок, если это необходимо.
+    При неудаче делает повторные попытки с логикой повторов.
     """
     # Получаем LOCK_ID из переменных окружения
     LOCK_ID = os.getenv('TTLOCK_LOCK_ID')
@@ -330,7 +330,9 @@ def job() -> None:
         logger.debug("Время открытия не совпало. Задача завершена.")
 
 def log_heartbeat():
-    """Логирует 'сердцебиение' планировщика, чтобы показать, что он работает."""
+    """
+    Логирует 'сердцебиение' планировщика, чтобы показать, что он работает.
+    """
     logger.debug("Планировщик активен, ожидает задач...")
 
 def main() -> None:
