@@ -42,15 +42,11 @@ def get_token(logger: Optional[logging.Logger] = None) -> Optional[str]:
         resp = requests.post(url, data=data, timeout=10, verify=False)
         if logger:
             logger.info(f"TTLock get_token response: {resp.text}")
-        if DEBUG:
-            print(f"[DEBUG] get_token: {resp.text}")
         return resp.json().get("access_token")
     except Exception as e:
         msg = f"Ошибка получения токена: {str(e)}"
         if logger:
             logger.error(msg)
-        if DEBUG:
-            print(msg)
         return None
 
 
@@ -78,8 +74,6 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
     
     try:
         response = requests.post(url, data=data, verify=False)
-        if DEBUG:
-            print(f"[DEBUG] unlock_lock: {response.text}")
         if logger:
             logger.info(f"Ответ TTLock (unlock): {response.text}")
         response_data = response.json()
@@ -88,8 +82,6 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
             msg = f"✅ Замок {lock_id} открыт успешно"
             if logger:
                 logger.info(msg)
-            if DEBUG:
-                print(msg)
             if send_telegram:
                 send_telegram(msg)
             return {"errcode": 0, "errmsg": "OK", "success": True}
@@ -99,8 +91,6 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
             msg = f"Ошибка при открытии замка {lock_id}: {errmsg} (Код: {errcode})"
             if logger:
                 logger.error(msg)
-            if DEBUG:
-                print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
             return {"errcode": errcode, "errmsg": errmsg, "success": False}
@@ -109,8 +99,6 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
         msg = f"Ошибка при запросе открытия замка {lock_id}: {str(e)}"
         if logger:
             logger.error(msg)
-        if DEBUG:
-            print(msg)
         if send_telegram:
             send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
         return {"errcode": -1, "errmsg": str(e), "success": False}
@@ -140,8 +128,6 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
     
     try:
         response = requests.post(url, data=data, verify=False)
-        if DEBUG:
-            print(f"[DEBUG] lock_lock: {response.text}")
         if logger:
             logger.info(f"Ответ TTLock (lock): {response.text}")
         response_data = response.json()
@@ -150,8 +136,6 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
             msg = f"✅ Замок {lock_id} закрыт успешно"
             if logger:
                 logger.info(msg)
-            if DEBUG:
-                print(msg)
             if send_telegram:
                 send_telegram(msg)
             return {"errcode": 0, "errmsg": "OK", "success": True}
@@ -161,8 +145,6 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
             msg = f"Ошибка при закрытии замка {lock_id}: {errmsg} (Код: {errcode})"
             if logger:
                 logger.error(msg)
-            if DEBUG:
-                print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
             return {"errcode": errcode, "errmsg": errmsg, "success": False}
@@ -171,8 +153,6 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
         msg = f"Ошибка при запросе закрытия замка {lock_id}: {str(e)}"
         if logger:
             logger.error(msg)
-        if DEBUG:
-            print(msg)
         if send_telegram:
             send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
         return {"errcode": -1, "errmsg": str(e), "success": False}
@@ -201,8 +181,6 @@ def list_locks(token: str, logger: Optional[logging.Logger] = None) -> List[Dict
         response = requests.get(url, params=data, verify=False)
         if logger:
             logger.info(f"Ответ TTLock (list_locks): {response.text}")
-        if DEBUG:
-            print(f"[DEBUG] list_locks: {response.text}")
         
         response_data = response.json()
         
@@ -218,8 +196,6 @@ def list_locks(token: str, logger: Optional[logging.Logger] = None) -> List[Dict
         msg = f"Ошибка получения списка замков: {str(e)}"
         if logger:
             logger.error(msg)
-        if DEBUG:
-            print(msg)
         return []
 
 
@@ -293,8 +269,6 @@ def get_lock_status(token, lock_id, logger=None):
         response = requests.post(url, data=data, verify=False)
         if logger:
             logger.info(f"Ответ TTLock (get_lock_status): {response.text}")
-        if DEBUG:
-            print(f"[DEBUG] get_lock_status: {response.text}")
         response_data = response.json()
         if "errcode" in response_data and response_data["errcode"] == 0:
             return response_data.get("lockStatus")
@@ -303,8 +277,6 @@ def get_lock_status(token, lock_id, logger=None):
     except Exception as e:
         if logger:
             logger.error(f"Ошибка получения статуса замка: {str(e)}")
-        if DEBUG:
-            print(f"Ошибка получения статуса замка: {str(e)}")
         return None
 
 
