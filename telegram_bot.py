@@ -5,6 +5,7 @@ Telegram-бот для управления рассылкой уведомле�
 Для отладки можно установить переменную окружения DEBUG=1 (или true/True) — тогда будет подробный вывод в консоль.
 """
 import logging
+import warnings
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler
 import os
@@ -19,6 +20,9 @@ import traceback
 from telegram_utils import is_authorized, log_exception, send_email_notification, load_config, save_config
 import re
 from typing import Any
+
+# Подавляем предупреждение о CallbackQueryHandler
+warnings.filterwarnings("ignore", message="If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message.")
 
 # Определяем путь к .env: сначала из ENV_PATH, иначе env/.env
 ENV_PATH = os.getenv('ENV_PATH') or 'env/.env'
@@ -873,7 +877,8 @@ def main():
                     CONFIRM_CHANGE: [MessageHandler(Filters.text, confirm_change)],
                 },
                 fallbacks=[],
-                per_chat=True
+                per_chat=True,
+                per_message=True
             ),
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
@@ -881,7 +886,8 @@ def main():
                     SETTIMEZONE_VALUE: [MessageHandler(Filters.text, settimezone_apply)],
                 },
                 fallbacks=[],
-                per_chat=True
+                per_chat=True,
+                per_message=True
             ),
             ConversationHandler(
                 entry_points=[
@@ -893,7 +899,8 @@ def main():
                     SETTIME_VALUE: [MessageHandler(Filters.text, settime_value)],
                 },
                 fallbacks=[],
-                per_chat=True
+                per_chat=True,
+                per_message=True
             ),
             ConversationHandler(
                 entry_points=[
@@ -907,7 +914,8 @@ def main():
                     SETBREAK_DEL: [MessageHandler(Filters.text, setbreak_remove)],
                 },
                 fallbacks=[],
-                per_chat=True
+                per_chat=True,
+                per_message=True
             ),
             ConversationHandler(
                 entry_points=[
@@ -918,7 +926,8 @@ def main():
                     SETEMAIL_VALUE: [MessageHandler(Filters.text, setemail_value)],
                 },
                 fallbacks=[],
-                per_chat=True
+                per_chat=True,
+                per_message=True
             ),
         ]
         for handler in handlers:
