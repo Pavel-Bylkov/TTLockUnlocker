@@ -75,50 +75,45 @@ def unlock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = Non
         "accessToken": token,
         "date": int(time.time() * 1000)
     }
-    intervals = [0, 30, 60]
     
-    for attempt in range(3):
-        if attempt > 0:
-            delay = intervals[attempt]
-            msg = f"[RETRY] Ожидание {delay} сек перед повторной попыткой открытия (попытка {attempt+1}/3)"
+    try:
+        response = requests.post(url, data=data, verify=False)
+        if DEBUG:
+            print(f"[DEBUG] unlock_lock: {response.text}")
+        if logger:
+            logger.info(f"Ответ TTLock (unlock): {response.text}")
+        response_data = response.json()
+        
+        if "errcode" in response_data and response_data["errcode"] == 0:
+            msg = f"✅ Замок {lock_id} открыт успешно"
             if logger:
                 logger.info(msg)
             if DEBUG:
                 print(msg)
-            time.sleep(delay)
-        try:
-            response = requests.post(url, data=data, verify=False)
-            if DEBUG:
-                print(f"[DEBUG] unlock_lock (попытка {attempt+1}): {response.text}")
-            if logger:
-                logger.info(f"Ответ TTLock (unlock, попытка {attempt+1}): {response.text}")
-            response_data = response.json()
-            if "errcode" in response_data and response_data["errcode"] == 0:
-                msg = f"✅ Замок {lock_id} открыт успешно (попытка {attempt+1})"
-                if logger:
-                    logger.info(msg)
-                if DEBUG:
-                    print(msg)
-                if send_telegram:
-                    send_telegram(msg)
-                return {"errcode": 0, "errmsg": "OK", "success": True, "attempt": attempt+1}
-            else:
-                msg = f"Ошибка при открытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data.get('errcode')})"
-                if logger:
-                    logger.error(msg)
-                if DEBUG:
-                    print(msg)
-                if send_telegram:
-                    send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-        except Exception as e:
-            msg = f"Ошибка при запросе открытия замка {lock_id} (попытка {attempt+1}): {str(e)}"
+            if send_telegram:
+                send_telegram(msg)
+            return {"errcode": 0, "errmsg": "OK", "success": True}
+        else:
+            errmsg = response_data.get('errmsg', 'Неизвестная ошибка')
+            errcode = response_data.get('errcode', -1)
+            msg = f"Ошибка при открытии замка {lock_id}: {errmsg} (Код: {errcode})"
             if logger:
                 logger.error(msg)
             if DEBUG:
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
-    return {"errcode": -1, "errmsg": "Не удалось открыть замок после 3 попыток", "success": False, "attempt": 3}
+            return {"errcode": errcode, "errmsg": errmsg, "success": False}
+            
+    except Exception as e:
+        msg = f"Ошибка при запросе открытия замка {lock_id}: {str(e)}"
+        if logger:
+            logger.error(msg)
+        if DEBUG:
+            print(msg)
+        if send_telegram:
+            send_telegram(f"❗️ <b>Ошибка открытия замка</b>\n{msg}")
+        return {"errcode": -1, "errmsg": str(e), "success": False}
 
 
 def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
@@ -142,50 +137,45 @@ def lock_lock(token: str, lock_id: str, logger: Optional[logging.Logger] = None,
         "accessToken": token,
         "date": int(time.time() * 1000)
     }
-    intervals = [0, 30, 60]
     
-    for attempt in range(3):
-        if attempt > 0:
-            delay = intervals[attempt]
-            msg = f"[RETRY] Ожидание {delay} сек перед повторной попыткой закрытия (попытка {attempt+1}/3)"
+    try:
+        response = requests.post(url, data=data, verify=False)
+        if DEBUG:
+            print(f"[DEBUG] lock_lock: {response.text}")
+        if logger:
+            logger.info(f"Ответ TTLock (lock): {response.text}")
+        response_data = response.json()
+        
+        if "errcode" in response_data and response_data["errcode"] == 0:
+            msg = f"✅ Замок {lock_id} закрыт успешно"
             if logger:
                 logger.info(msg)
             if DEBUG:
                 print(msg)
-            time.sleep(delay)
-        try:
-            response = requests.post(url, data=data, verify=False)
-            if DEBUG:
-                print(f"[DEBUG] lock_lock (попытка {attempt+1}): {response.text}")
-            if logger:
-                logger.info(f"Ответ TTLock (lock, попытка {attempt+1}): {response.text}")
-            response_data = response.json()
-            if "errcode" in response_data and response_data["errcode"] == 0:
-                msg = f"✅ Замок {lock_id} закрыт успешно (попытка {attempt+1})"
-                if logger:
-                    logger.info(msg)
-                if DEBUG:
-                    print(msg)
-                if send_telegram:
-                    send_telegram(msg)
-                return {"errcode": 0, "errmsg": "OK", "success": True, "attempt": attempt+1}
-            else:
-                msg = f"Ошибка при закрытии замка {lock_id} (попытка {attempt+1}): {response_data.get('errmsg', 'Неизвестная ошибка')} (Код: {response_data.get('errcode')})"
-                if logger:
-                    logger.error(msg)
-                if DEBUG:
-                    print(msg)
-                if send_telegram:
-                    send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
-        except Exception as e:
-            msg = f"Ошибка при запросе закрытия замка {lock_id} (попытка {attempt+1}): {str(e)}"
+            if send_telegram:
+                send_telegram(msg)
+            return {"errcode": 0, "errmsg": "OK", "success": True}
+        else:
+            errmsg = response_data.get('errmsg', 'Неизвестная ошибка')
+            errcode = response_data.get('errcode', -1)
+            msg = f"Ошибка при закрытии замка {lock_id}: {errmsg} (Код: {errcode})"
             if logger:
                 logger.error(msg)
             if DEBUG:
                 print(msg)
             if send_telegram:
                 send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
-    return {"errcode": -1, "errmsg": "Не удалось закрыть замок после 3 попыток", "success": False, "attempt": 3}
+            return {"errcode": errcode, "errmsg": errmsg, "success": False}
+            
+    except Exception as e:
+        msg = f"Ошибка при запросе закрытия замка {lock_id}: {str(e)}"
+        if logger:
+            logger.error(msg)
+        if DEBUG:
+            print(msg)
+        if send_telegram:
+            send_telegram(f"❗️ <b>Ошибка закрытия замка</b>\n{msg}")
+        return {"errcode": -1, "errmsg": str(e), "success": False}
 
 
 def list_locks(token: str, logger: Optional[logging.Logger] = None) -> List[Dict]:

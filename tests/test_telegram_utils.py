@@ -113,6 +113,8 @@ def test_send_telegram_message_network_error(mock_post, mock_logger):
     mock_post.assert_called_once()
     assert "Ошибка отправки Telegram: Network Error" in mock_logger.warning.call_args[0][0]
 
+
+
 # --- Tests for load_config ---
 
 def test_load_config_success(mock_logger):

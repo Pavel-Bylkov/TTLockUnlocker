@@ -27,6 +27,7 @@ def send_telegram_message(token, chat_id=None, text=None, logger=None):
                 logger.error("TELEGRAM_CHAT_ID не задан в переменных окружения")
             return False
 
+
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,

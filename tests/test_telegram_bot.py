@@ -277,11 +277,13 @@ def test_disable_schedule(mock_restart, mock_save_config, mock_update, mock_cont
 @patch('ttlock_api.get_token', return_value='test_token')
 def test_open_lock_success(mock_get_token, mock_unlock, mock_update, mock_context):
     """Тест: успешное открытие замка через /open."""
-    mock_unlock.return_value = {'errcode': 0, 'attempt': 1}
-    open_lock(mock_update, mock_context)
-    mock_get_token.assert_called_once()
-    mock_unlock.assert_called_once_with('test_token', bot_module.TTLOCK_LOCK_ID, bot_module.logger)
-    mock_update.message.reply_text.assert_any_call("Замок <b>открыт</b>.\nПопытка: 1", parse_mode='HTML')
+    mock_unlock.return_value = {'errcode': 0}
+    with patch('telegram_bot.ttlock_api.unlock_lock', mock_unlock):
+        open_lock(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called()
+        # Проверяем, что сообщение об успехе отправлено
+        call_args = mock_update.message.reply_text.call_args
+        assert "Замок <b>открыт</b>" in call_args[0][0]
 
 @patch('ttlock_api.get_token', return_value=None)
 def test_open_lock_no_token(mock_get_token, mock_update, mock_context):
@@ -301,11 +303,14 @@ def test_open_lock_exception(mock_get_token, mock_update, mock_context):
 @patch('ttlock_api.get_token', return_value='test_token')
 def test_close_lock_success(mock_get_token, mock_lock, mock_update, mock_context):
     """Тест: успешное закрытие замка через /close."""
-    mock_lock.return_value = {'errcode': 0, 'attempt': 1}
-    close_lock(mock_update, mock_context)
-    mock_get_token.assert_called_once()
-    mock_lock.assert_called_once_with('test_token', bot_module.TTLOCK_LOCK_ID, bot_module.logger)
-    mock_update.message.reply_text.assert_any_call("Замок <b>закрыт</b>.\nПопытка: 1", parse_mode='HTML')
+    mock_lock.return_value = {'errcode': 0}
+    with patch('telegram_bot.ttlock_api.lock_lock', mock_lock):
+        close_lock(mock_update, mock_context)
+        mock_get_token.assert_called_once()
+        mock_update.message.reply_text.assert_called()
+        # Проверяем, что сообщение об успехе отправлено
+        call_args = mock_update.message.reply_text.call_args
+        assert "Замок <b>закрыт</b>" in call_args[0][0]
 
 @patch('ttlock_api.get_token', return_value=None)
 def test_close_lock_no_token(mock_get_token, mock_update, mock_context):

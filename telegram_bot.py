@@ -119,8 +119,6 @@ def send_message(update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> 
         **kwargs: Дополнительные параметры
     """
     try:
-        # Заменяем <br> на \n
-        text = text.replace("<br>", "\n")
         logger.debug(f"Отправка сообщения пользователю {update.effective_chat.id}")
         update.message.reply_text(text, parse_mode=parse_mode, **kwargs)
     except Exception as e:
@@ -514,7 +512,7 @@ def open_lock(update, context):
         resp = ttlock_api.unlock_lock(token, TTLOCK_LOCK_ID, logger)
         logger.debug(f"Ответ от API: {resp}")
         if resp['errcode'] == 0:
-            send_message(update, f"Замок <b>открыт</b>.\nПопытка: {resp['attempt']}")
+            send_message(update, f"Замок <b>открыт</b>.")
         else:
             msg = f"Ошибка открытия замка: {resp.get('errmsg', 'Неизвестная ошибка')}"
             logger.error(msg)
@@ -545,7 +543,7 @@ def close_lock(update, context):
         resp = ttlock_api.lock_lock(token, TTLOCK_LOCK_ID, logger)
         logger.debug(f"Ответ от API: {resp}")
         if resp['errcode'] == 0:
-            send_message(update, f"Замок <b>закрыт</b>.\nПопытка: {resp['attempt']}")
+            send_message(update, f"Замок <b>закрыт</b>.")
         else:
             msg = f"Ошибка закрытия замка: {resp.get('errmsg', 'Неизвестная ошибка')}"
             logger.error(msg)
@@ -795,7 +793,7 @@ def setbreak_add(update, context):
         send_message(update, f"Перерыв {break_str} для {day} добавлен.")
         restart_auto_unlocker_and_notify(
             update, logger,
-            f"Добавлен перерыв {break_str} для {day}.<br>Auto_unlocker перезапущен, изменения применены.",
+            f"Добавлен перерыв {break_str} для {day}.\nAuto_unlocker перезапущен, изменения применены.",
             "Перерыв добавлен, но не удалось перезапустить auto_unlocker"
         )
         return ConversationHandler.END
@@ -824,7 +822,7 @@ def setbreak_remove(update, context):
             send_message(update, f"Перерыв {break_str} для {day} удалён.")
             restart_auto_unlocker_and_notify(
                 update, logger,
-                f"Удалён перерыв {break_str} для {day}.<br>Auto_unlocker перезапущен, изменения применены.",
+                f"Удалён перерыв {break_str} для {day}.\nAuto_unlocker перезапущен, изменения применены.",
                 "Перерыв удалён, но не удалось перезапустить auto_unlocker"
             )
         else:

@@ -142,14 +142,14 @@ def execute_lock_action_with_retries(action_func, token: str, lock_id: str, acti
             status = details.get('status', 'N/A')
             battery = details.get('battery', 'N/A')
             last_action = details.get('last_action', 'N/A')
-            details_msg = f"<br>  - Детали: Сеть <b>{status}</b>, Заряд <b>{battery}%</b>, Посл. действие: <b>{last_action}</b>"
+            details_msg = f"\n  - Детали: Сеть <b>{status}</b>, Заряд <b>{battery}%</b>, Посл. действие: <b>{last_action}</b>"
             logger.info(f"Дополнительная информация о замке: Сеть={status}, Заряд={battery}%, Посл. действие={last_action}")
 
         # Отправляем уведомление в Telegram о каждой неудаче
         send_telegram_message(
             telegram_token,
             None,
-            f"⚠️ <b>Попытка #{attempt} ({failure_msg_part}) не удалась.</b><br>Ошибка: {last_error}{details_msg}",
+            f"⚠️ <b>Попытка #{attempt} ({failure_msg_part}) не удалась.</b>\nОшибка: {last_error}{details_msg}",
             logger
         )
 

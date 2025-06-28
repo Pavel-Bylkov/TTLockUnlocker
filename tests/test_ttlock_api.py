@@ -65,54 +65,33 @@ def _test_lock_operation(operation_func, operation_name, mock_post, mock_sleep, 
     mock_logger.reset_mock()
     mock_post.return_value.json.return_value = {"errcode": 0}
     result = operation_func('token', 'lock_id', mock_logger, mock_send_telegram)
-    assert result == {"errcode": 0, "errmsg": "OK", "success": True, "attempt": 1}
+    assert result == {"errcode": 0, "errmsg": "OK", "success": True}
     mock_post.assert_called_once()
     mock_logger.info.assert_called()
     mock_send_telegram.assert_called_once()
 
-    # --- Сценарий 2: неудача на всех трёх попытках (ошибка API) ---
+    # --- Сценарий 2: неудача (ошибка API) ---
     mock_post.reset_mock()
     mock_logger.reset_mock()
-    mock_sleep.reset_mock()
     mock_send_telegram.reset_mock()
     mock_post.return_value.json.return_value = {"errcode": -1, "errmsg": "API Error"}
     result = operation_func('token', 'lock_id', mock_logger, mock_send_telegram)
-    assert result == {"errcode": -1, f"errmsg": f"Не удалось {operation_name} замок после 3 попыток", "success": False, "attempt": 3}
-    assert mock_post.call_count == 3
-    assert mock_sleep.call_count == 2
-    assert mock_sleep.call_args_list == [call(30), call(60)]
-    assert mock_logger.error.call_count == 3
-    assert mock_send_telegram.call_count == 3
+    assert result == {"errcode": -1, "errmsg": "API Error", "success": False}
+    assert mock_post.call_count == 1
+    assert mock_logger.error.call_count == 1
+    assert mock_send_telegram.call_count == 1
 
-    # --- Сценарий 3: успех со второй попытки ---
+    # --- Сценарий 3: неудача из-за сетевого исключения ---
     mock_post.reset_mock()
     mock_logger.reset_mock()
-    mock_sleep.reset_mock()
-    mock_send_telegram.reset_mock()
-    mock_post.side_effect = [
-        MagicMock(json=MagicMock(return_value={"errcode": -1, "errmsg": "First Fail"})),
-        MagicMock(json=MagicMock(return_value={"errcode": 0}))
-    ]
-    result = operation_func('token', 'lock_id', mock_logger, mock_send_telegram)
-    assert result == {"errcode": 0, "errmsg": "OK", "success": True, "attempt": 2}
-    assert mock_post.call_count == 2
-    mock_sleep.assert_called_once_with(30)
-    mock_logger.error.assert_called_once()
-    mock_logger.info.assert_called()
-    assert mock_send_telegram.call_count == 2 # Один для ошибки, один для успеха
-
-    # --- Сценарий 4: неудача из-за сетевого исключения на всех попытках ---
-    mock_post.reset_mock()
-    mock_logger.reset_mock()
-    mock_sleep.reset_mock()
     mock_send_telegram.reset_mock()
     mock_post.side_effect = requests.exceptions.RequestException("Network Failure")
     result = operation_func('token', 'lock_id', mock_logger, mock_send_telegram)
-    assert result == {"errcode": -1, "errmsg": f"Не удалось {operation_name} замок после 3 попыток", "success": False, "attempt": 3}
-    assert mock_post.call_count == 3
-    assert mock_logger.error.call_count == 3
+    assert result == {"errcode": -1, "errmsg": "Network Failure", "success": False}
+    assert mock_post.call_count == 1
+    assert mock_logger.error.call_count == 1
     assert "Network Failure" in mock_logger.error.call_args_list[0][0][0]
-    assert mock_send_telegram.call_count == 3
+    assert mock_send_telegram.call_count == 1
 
 @patch('time.sleep')
 @patch('requests.post')
