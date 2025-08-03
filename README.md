@@ -216,10 +216,143 @@ pytest --cov=.
 
 ## Устранение неполадок
 
-- **TTLock**: проверьте TTLOCK_CLIENT_ID, TTLOCK_CLIENT_SECRET, TTLOCK_USERNAME, TTLOCK_PASSWORD.
-- **Telegram**: проверьте TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, права бота.
-- **Email**: используйте пароль для приложений, проверьте SMTP-настройки.
-- **Логи**: смотрите в папке logs/ и через docker logs.
+### Проблемы с TTLock API
+
+**Ошибка: "Не удалось получить токен"**
+- Проверьте TTLOCK_CLIENT_ID, TTLOCK_CLIENT_SECRET, TTLOCK_USERNAME, TTLOCK_PASSWORD
+- Убедитесь, что TTLOCK_USERNAME и TTLOCK_PASSWORD от аккаунта владельца замка
+- Проверьте подключение к интернету
+
+**Ошибка: "Замки не найдены"**
+- Убедитесь, что замок добавлен в мобильное приложение TTLock
+- Проверьте, что используете аккаунт владельца замка
+- Попробуйте перезапустить сервис: `docker-compose restart`
+
+### Проблемы с Telegram-ботом
+
+**Кнопки меню не работают**
+- Перезапустите бота: `docker-compose restart telegram_bot_1`
+- Проверьте логи: `docker logs telegram_bot_1`
+- Убедитесь, что TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID корректны
+
+**Команда /setemail не работает**
+- Проверьте права на запись в папку env/
+- Убедитесь, что файл .env существует и доступен для записи
+- Проверьте логи бота на ошибки
+
+**Команда /settime не работает**
+- Проверьте права на запись в config.json
+- Убедитесь, что файл config.json существует
+- Проверьте логи бота на ошибки
+
+**Бот не отвечает на команды**
+- Проверьте TELEGRAM_CHAT_ID - должен совпадать с вашим chat_id
+- Убедитесь, что бот добавлен в чат
+- Проверьте, что бот не заблокирован
+
+### Проблемы с Email
+
+**Email не отправляется**
+- Проверьте SMTP настройки в .env
+- Используйте "пароль для приложений" для SMTP_PASSWORD
+- Для Yandex: включите "Пароли для приложений" в настройках безопасности
+- Проверьте логи: `docker logs auto_unlocker_1`
+
+### Проблемы с Docker
+
+**Контейнеры не запускаются**
+```bash
+# Проверьте статус
+docker-compose ps
+
+# Пересоберите образы
+docker-compose build --no-cache
+
+# Перезапустите с логами
+docker-compose up
+```
+
+**Ошибка прав доступа**
+```bash
+# Исправьте права на папки
+chmod -R 755 logs/
+chmod -R 755 env/
+chmod 666 config.json
+
+# Для Docker на Linux
+sudo chown -R 1000:1000 logs/
+```
+
+### Проблемы с расписанием
+
+**Замок не открывается по расписанию**
+- Проверьте часовой пояс в config.json
+- Убедитесь, что schedule_enabled: true
+- Проверьте время открытия в open_times
+- Проверьте логи: `docker logs auto_unlocker_1`
+
+**Неправильное время открытия**
+- Проверьте timezone в config.json
+- Убедитесь, что сервер в правильном часовом поясе
+- Перезапустите сервис после изменения timezone
+
+### Диагностика
+
+**Проверка работы API**
+```bash
+# Запустите тестовую утилиту
+python unlocker.py
+```
+
+**Проверка логов**
+```bash
+# Логи auto_unlocker
+docker logs auto_unlocker_1
+
+# Логи telegram_bot
+docker logs telegram_bot_1
+
+# Логи в файлах
+tail -f logs/auto_unlocker.log
+tail -f logs/telegram_bot.log
+```
+
+**Проверка конфигурации**
+```bash
+# Проверьте config.json
+cat config.json
+
+# Проверьте .env (безопасно)
+grep -v PASSWORD env/.env
+
+# Запустите диагностический скрипт
+python test_bot_commands.py
+```
+
+### Частые ошибки
+
+**"ModuleNotFoundError: No module named 'docker'"**
+```bash
+# Добавьте docker в requirements.txt
+echo "docker==7.0.0" >> requirements.txt
+docker-compose build
+```
+
+**"Permission denied" при записи файлов**
+```bash
+# Исправьте права
+sudo chown -R $USER:$USER .
+chmod -R 755 logs env
+chmod 666 config.json
+```
+
+**"Connection refused" для Docker**
+```bash
+# Перезапустите Docker
+sudo systemctl restart docker
+# или
+sudo service docker restart
+```
 
 ## Безопасность
 
@@ -229,8 +362,92 @@ pytest --cov=.
 
 ## Получение TTLock API Client ID, Secret и Lock ID
 
-1. Зарегистрируйтесь на [TTLock Open Platform](https://open.ttlock.com/).
-2. Создайте приложение, получите Client ID и Secret.
-3. Lock ID — в мобильном приложении TTLock или в Open Platform (Lock List).
+### 1. Регистрация на TTLock Open Platform
+
+1. Перейдите на [TTLock Open Platform](https://open.ttlock.com/)
+2. Нажмите "Register" или "Зарегистрироваться"
+3. Заполните форму регистрации:
+   - Email (будет использоваться как TTLOCK_USERNAME)
+   - Пароль (будет использоваться как TTLOCK_PASSWORD)
+   - Подтвердите пароль
+4. Подтвердите email через письмо, которое придет на указанный адрес
+
+### 2. Создание приложения и получение Client ID/Secret
+
+1. Войдите в свой аккаунт на [TTLock Open Platform](https://open.ttlock.com/)
+2. Перейдите в раздел "Applications" или "Приложения"
+3. Нажмите "Create Application" или "Создать приложение"
+4. Заполните форму:
+   - **Application Name**: любое название (например, "TTLockUnlocker")
+   - **Description**: описание проекта
+   - **Platform**: выберите "Web" или "Server"
+   - **Callback URL**: оставьте пустым или укажите `http://localhost`
+5. Нажмите "Submit" или "Отправить"
+6. После создания приложения вы получите:
+   - **Client ID** (скопируйте в TTLOCK_CLIENT_ID)
+   - **Client Secret** (скопируйте в TTLLOCK_CLIENT_SECRET)
+
+### 3. Получение Lock ID
+
+#### Способ 1: Через мобильное приложение TTLock
+
+1. Установите приложение TTLock на телефон
+2. Войдите в аккаунт (используйте тот же email, что и при регистрации на Open Platform)
+3. Добавьте замок в приложение (если еще не добавлен)
+4. Откройте замок в приложении
+5. Нажмите на замок → "Settings" → "Advanced" → "Lock ID"
+6. Скопируйте Lock ID (это будет TTLOCK_LOCK_ID)
+
+#### Способ 2: Через TTLock Open Platform
+
+1. Войдите в [TTLock Open Platform](https://open.ttlock.com/)
+2. Перейдите в раздел "Lock List" или "Список замков"
+3. Найдите ваш замок в списке
+4. Скопируйте Lock ID из таблицы
+
+#### Способ 3: Автоматическое определение (рекомендуется)
+
+Если у вас только один замок, можно оставить TTLOCK_LOCK_ID пустым в .env файле. Система автоматически определит Lock ID при первом запуске.
+
+### 4. Проверка параметров
+
+После получения всех параметров проверьте их:
+
+```bash
+# Запустите тестовую утилиту
+python unlocker.py
+```
+
+Если все параметры верны, вы увидите список замков и сможете протестировать открытие/закрытие.
+
+### 5. Пример .env файла
+
+```env
+# TTLock API (получены с Open Platform)
+TTLOCK_CLIENT_ID=your_client_id_here
+TTLOCK_CLIENT_SECRET=your_client_secret_here
+TTLOCK_USERNAME=your_email@example.com
+TTLOCK_PASSWORD=your_password_here
+# TTLOCK_LOCK_ID=optional_lock_id_here
+
+# Telegram (получены от @BotFather)
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+TELEGRAM_CODEWORD=secretword
+
+# Email (для критических уведомлений)
+EMAIL_TO=your_email@example.com
+SMTP_SERVER=smtp.yandex.ru
+SMTP_PORT=465
+SMTP_USER=your_email@yandex.ru
+SMTP_PASSWORD=your_app_password_here
+```
+
+### Важные замечания
+
+- **TTLOCK_USERNAME и TTLOCK_PASSWORD** должны быть от аккаунта владельца замка
+- Используйте "пароль для приложений" для SMTP (не основной пароль от email)
+- Lock ID можно оставить пустым - система определит его автоматически
+- Все параметры чувствительны к регистру и пробелам
 
 

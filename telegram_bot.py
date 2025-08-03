@@ -124,13 +124,21 @@ def send_message(update, text: str, parse_mode: str = "HTML", **kwargs: Any) -> 
     """
     try:
         logger.debug(f"Отправка сообщения пользователю {update.effective_chat.id}")
-        update.message.reply_text(text, parse_mode=parse_mode, **kwargs)
+        if hasattr(update, 'message') and update.message:
+            update.message.reply_text(text, parse_mode=parse_mode, **kwargs)
+        elif hasattr(update, 'callback_query') and update.callback_query:
+            update.callback_query.message.reply_text(text, parse_mode=parse_mode, **kwargs)
+        else:
+            logger.error("Не удалось найти объект message для отправки")
     except Exception as e:
         logger.error(f"Ошибка отправки сообщения: {e}")
         logger.error(traceback.format_exc())
         # Пробуем отправить без форматирования
         try:
-            update.message.reply_text(text, parse_mode=None, **kwargs)
+            if hasattr(update, 'message') and update.message:
+                update.message.reply_text(text, parse_mode=None, **kwargs)
+            elif hasattr(update, 'callback_query') and update.callback_query:
+                update.callback_query.message.reply_text(text, parse_mode=None, **kwargs)
         except Exception as e:
             logger.error(f"Ошибка отправки сообщения без форматирования: {e}")
 
@@ -204,9 +212,11 @@ def setemail_value(update, context) -> int:
     Сохраняет email в .env файл.
     """
     if not is_authorized(update, AUTHORIZED_CHAT_ID):
+        logger.warning(f"Попытка смены email неавторизованным пользователем: {update.effective_chat.id}")
         return ConversationHandler.END
 
     email = update.message.text.strip()
+    logger.info(f"Попытка установки email: {email}")
 
     # Простая проверка формата email
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
@@ -215,31 +225,46 @@ def setemail_value(update, context) -> int:
 
     logger.debug(f"Начинаю запись EMAIL_TO={email} в {ENV_PATH}")
     try:
-        with open(ENV_PATH, 'r') as f:
+        # Проверяем существование файла
+        if not os.path.exists(ENV_PATH):
+            send_message(update, f"Файл {ENV_PATH} не найден. Проверьте настройки.")
+            return ConversationHandler.END
+            
+        with open(ENV_PATH, 'r', encoding='utf-8') as f:
             lines = f.readlines()
     except Exception as e:
+        logger.error(f"Ошибка чтения .env файла: {e}")
         send_message(update, f"Не удалось прочитать .env: {e}")
         return ConversationHandler.END
 
     send_message(update, "⚙️ Сохраняю новые настройки...")
-    with open(ENV_PATH, 'w') as f:
-        found = False
-        for line in lines:
-            if line.startswith('EMAIL_TO='):
+    try:
+        with open(ENV_PATH, 'w', encoding='utf-8') as f:
+            found = False
+            for line in lines:
+                if line.startswith('EMAIL_TO='):
+                    f.write(f'EMAIL_TO={email}\n')
+                    found = True
+                    logger.debug(f"Заменена строка EMAIL_TO на: {email}")
+                else:
+                    f.write(line)
+            if not found:
                 f.write(f'EMAIL_TO={email}\n')
-                found = True
-            else:
-                f.write(line)
-        if not found:
-            f.write(f'EMAIL_TO={email}\n')
-
-    restart_auto_unlocker_and_notify(
-        update,
-        logger,
-        f"Email для уведомлений установлен: {email}",
-        "Ошибка при перезапуске сервиса"
-    )
-    return ConversationHandler.END
+                logger.debug(f"Добавлена новая строка EMAIL_TO: {email}")
+        
+        logger.info(f"Email успешно обновлен в {ENV_PATH}: {email}")
+        
+        restart_auto_unlocker_and_notify(
+            update,
+            logger,
+            f"Email для уведомлений установлен: {email}",
+            "Ошибка при перезапуске сервиса"
+        )
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"Ошибка записи в .env файл: {e}")
+        send_message(update, f"Ошибка при сохранении email: {e}")
+        return ConversationHandler.END
 
 def do_test_email(update, context):
     """
@@ -380,11 +405,21 @@ def restart_auto_unlocker_and_notify(update, logger, message_success, message_er
     """
     logger.debug("Пробую перезапустить сервис автооткрытия...")
     try:
+        import docker
         client = docker.from_env()
         container = client.containers.get(AUTO_UNLOCKER_CONTAINER)
         container.restart()
         send_message(update, message_success)
         logger.info("Сервис автооткрытия перезапущен после изменения конфигурации.")
+    except ImportError:
+        logger.error("Модуль docker не установлен")
+        send_message(update, f"⚠️ {message_error}: модуль docker не установлен")
+    except docker.errors.NotFound:
+        logger.error(f"Контейнер {AUTO_UNLOCKER_CONTAINER} не найден")
+        send_message(update, f"⚠️ {message_error}: контейнер {AUTO_UNLOCKER_CONTAINER} не найден")
+    except docker.errors.APIError as e:
+        logger.error(f"Ошибка Docker API: {e}")
+        send_message(update, f"⚠️ {message_error}: ошибка Docker API - {e}")
     except Exception as e:
         logger.error(f"Ошибка при перезапуске сервиса: {str(e)}")
         send_message(update, f"🚫 {message_error}: {str(e)}")
@@ -632,6 +667,10 @@ def settime_value(update, context):
     """
     Обрабатывает выбор времени открытия.
     """
+    if not is_authorized(update, AUTHORIZED_CHAT_ID):
+        logger.warning(f"Попытка смены времени неавторизованным пользователем: {update.effective_chat.id}")
+        return ConversationHandler.END
+        
     if DEBUG:
         logger.debug(f"Пользователь вводит время: {update.message.text.strip()}")
     time_str = update.message.text.strip()
@@ -651,14 +690,34 @@ def settime_value(update, context):
         # Форматируем время в формат HH:MM
         time_str = f"{hour:02d}:{minute:02d}"
 
+        # Проверяем существование файла конфигурации
+        if not os.path.exists(CONFIG_PATH):
+            send_message(update, f"Файл конфигурации {CONFIG_PATH} не найден.")
+            return ConversationHandler.END
+
         cfg = load_config(CONFIG_PATH, logger)
+        if cfg is None:
+            cfg = {}
         if "open_times" not in cfg:
             cfg["open_times"] = {}
 
         # Сохраняем день перед очисткой состояния
-        day = context.user_data["day"]
+        day = context.user_data.get("day")
+        if not day:
+            logger.error("День недели не найден в контексте пользователя")
+            send_message(update, "Ошибка: день недели не найден. Попробуйте еще раз.")
+            return ConversationHandler.END
+            
         cfg["open_times"][day] = time_str
-        save_config(cfg, CONFIG_PATH, logger)
+        logger.info(f"Устанавливаю время открытия для {day}: {time_str}")
+        
+        try:
+            save_config(cfg, CONFIG_PATH, logger)
+            logger.info(f"Конфигурация успешно сохранена в {CONFIG_PATH}")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения конфигурации: {e}")
+            send_message(update, f"Ошибка при сохранении настроек: {e}")
+            return ConversationHandler.END
 
         # Очищаем состояние
         context.user_data.pop("state", None)
@@ -738,6 +797,13 @@ def restart_auto_unlocker_cmd(update, context):
         return
     send_message(update, "🔄 Отправляю команду на перезапуск сервиса...")
     restart_auto_unlocker_and_notify(update, logger, "Сервис автооткрытия перезапущен по команде.", "Не удалось перезапустить сервис автооткрытия")
+
+def cancel_conversation(update, context):
+    """
+    Отменяет текущий диалог.
+    """
+    send_message(update, "Операция отменена.")
+    return ConversationHandler.END
 
 def menu(update, context):
     """
@@ -859,7 +925,7 @@ def main():
             CommandHandler('close', close_lock),
             CommandHandler('restart_auto_unlocker', restart_auto_unlocker_cmd),
             CommandHandler('test_email', do_test_email),
-            # Обработчики для русских команд меню
+            # Обработчики для русских команд меню (должны быть перед ConversationHandler)
             MessageHandler(Filters.regex('^📊 Статус$'), status),
             MessageHandler(Filters.regex('^📋 Логи$'), logs),
             MessageHandler(Filters.regex('^🔓 Открыть$'), open_lock),
@@ -867,6 +933,7 @@ def main():
             MessageHandler(Filters.regex('^🔄 Перезапуск$'), restart_auto_unlocker_cmd),
             MessageHandler(Filters.regex('^✉️ Тест Email$'), do_test_email),
             MessageHandler(Filters.regex('^📋 Меню$'), menu),
+            # ConversationHandler для смены получателя
             ConversationHandler(
                 entry_points=[
                     CommandHandler('setchat', setchat),
@@ -876,19 +943,21 @@ def main():
                     ASK_CODEWORD: [MessageHandler(Filters.text, check_codeword)],
                     CONFIRM_CHANGE: [MessageHandler(Filters.text, confirm_change)],
                 },
-                fallbacks=[],
+                fallbacks=[CommandHandler('cancel', cancel_conversation)],
                 per_chat=True,
                 per_message=True
             ),
+            # ConversationHandler для настройки часового пояса
             ConversationHandler(
                 entry_points=[CommandHandler('settimezone', settimezone)],
                 states={
                     SETTIMEZONE_VALUE: [MessageHandler(Filters.text, settimezone_apply)],
                 },
-                fallbacks=[],
+                fallbacks=[CommandHandler('cancel', cancel_conversation)],
                 per_chat=True,
                 per_message=True
             ),
+            # ConversationHandler для настройки времени
             ConversationHandler(
                 entry_points=[
                     CommandHandler('settime', settime),
@@ -898,10 +967,11 @@ def main():
                     SETTIME_DAY: [CallbackQueryHandler(handle_settime_callback, pattern="^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$")],
                     SETTIME_VALUE: [MessageHandler(Filters.text, settime_value)],
                 },
-                fallbacks=[],
+                fallbacks=[CommandHandler('cancel', cancel_conversation)],
                 per_chat=True,
                 per_message=True
             ),
+            # ConversationHandler для настройки перерывов
             ConversationHandler(
                 entry_points=[
                     CommandHandler('setbreak', setbreak),
@@ -913,10 +983,11 @@ def main():
                     SETBREAK_ADD: [MessageHandler(Filters.text, setbreak_add)],
                     SETBREAK_DEL: [MessageHandler(Filters.text, setbreak_remove)],
                 },
-                fallbacks=[],
+                fallbacks=[CommandHandler('cancel', cancel_conversation)],
                 per_chat=True,
                 per_message=True
             ),
+            # ConversationHandler для настройки email
             ConversationHandler(
                 entry_points=[
                     CommandHandler('setemail', setemail),
@@ -925,7 +996,7 @@ def main():
                 states={
                     SETEMAIL_VALUE: [MessageHandler(Filters.text, setemail_value)],
                 },
-                fallbacks=[],
+                fallbacks=[CommandHandler('cancel', cancel_conversation)],
                 per_chat=True,
                 per_message=True
             ),

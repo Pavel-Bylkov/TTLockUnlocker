@@ -73,16 +73,61 @@ def load_config(config_path, logger=None, default=None):
         default: значения по умолчанию (опционально)
     """
     if default is None:
-        default = {}
+        default = {
+            "timezone": "Asia/Novosibirsk",
+            "schedule_enabled": True,
+            "open_times": {
+                "Пн": "09:00",
+                "Вт": "09:00", 
+                "Ср": "09:00",
+                "Чт": "09:00",
+                "Пт": "09:00",
+                "Сб": "09:00",
+                "Вс": "09:00"
+            },
+            "breaks": {
+                "Пн": [],
+                "Вт": [],
+                "Ср": [],
+                "Чт": [],
+                "Пт": [],
+                "Сб": [],
+                "Вс": []
+            }
+        }
+    
     try:
         if logger:
             log_message(logger, "DEBUG", f"Чтение конфигурации из {config_path}")
+        
+        # Проверяем существование файла
+        import os
+        if not os.path.exists(config_path):
+            if logger:
+                log_message(logger, "WARNING", f"Файл конфигурации {config_path} не найден, используются значения по умолчанию")
+            return default
+            
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
-            return config
+            
+        # Проверяем обязательные поля и добавляем недостающие
+        if "timezone" not in config:
+            config["timezone"] = default["timezone"]
+        if "schedule_enabled" not in config:
+            config["schedule_enabled"] = default["schedule_enabled"]
+        if "open_times" not in config:
+            config["open_times"] = default["open_times"]
+        if "breaks" not in config:
+            config["breaks"] = default["breaks"]
+            
+        return config
+    except json.JSONDecodeError as e:
+        if logger:
+            log_message(logger, "ERROR", f"Ошибка парсинга JSON в {config_path}: {e}")
+        return default
     except Exception as e:
         if logger:
-            log_message(logger, "ERROR", f"Ошибка чтения конфигурации: {e}")
+            log_message(logger, "ERROR", f"Ошибка чтения конфигурации из {config_path}: {e}")
         return default
 
 
